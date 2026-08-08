@@ -80,7 +80,7 @@ Neon console → **New Project**.
 |---|---|
 | Name | `jbox` |
 | Postgres version | 17 |
-| Region | `aws-us-east-1` — match the Vercel deployment region (`iad1`) |
+| Region | `aws-us-east-1` — match the application deployment region |
 | Database name | `jbox` |
 
 Neon creates an owner role (`jbox_owner` or similar). **That role is for migrations only.**
@@ -199,13 +199,15 @@ back, leaving no throwaway organizations behind.
 ## 6. Wire the environment variables
 
 Four values exist per environment. Three may be deployed; the owner value is operator-only. Use
-the **pooled** host for runtimes and the **unpooled** host for migrations.
+the **direct (unpooled)** host everywhere. The applications run as long-lived Node processes
+and maintain their own `pg` connection pool, so Neon's pooled endpoint would be a second pool
+in front of ours -- an extra hop solving a problem we no longer have.
 
 | Variable | Role | Where |
 |---|---|---|
-| `DATABASE_URL` | `jbox_runtime`, pooled | all environments |
+| `DATABASE_URL` | `jbox_runtime`, direct | all environments |
 | `DATABASE_URL_UNPOOLED` | `jbox_runtime`, direct | all environments |
-| `CONTROL_DATABASE_URL` | `jbox_control`, pooled | all environments |
+| `CONTROL_DATABASE_URL` | `jbox_control`, direct | all environments |
 | `DATABASE_URL_OWNER` | owner, direct | **local only** — never set in a deployed environment |
 
 ```bash
@@ -222,7 +224,11 @@ vercel env add DATABASE_URL preview         # preview branch
 `DATABASE_URL_OWNER` existing only on your machine is what keeps a deployed application from
 being able to run DDL or bypass the role model.
 
-## Pooler compatibility
+## Transaction-scoped session state
+
+> Superseded in part: the apps no longer use Neon's pooled endpoint (see above). The rule below
+> still holds, for a different and equally binding reason -- our own `pg` pool reuses a
+> connection for the next request, so anything left at session scope leaks across requests.
 
 Neon's pooled endpoint is PgBouncer in **transaction** mode, so nothing may rely on state
 surviving between statements. The design already satisfies this and must continue to:

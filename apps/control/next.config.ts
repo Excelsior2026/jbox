@@ -25,6 +25,11 @@ const contentSecurityPolicy = [
 ].join('; ');
 
 const nextConfig: NextConfig = {
+  // Emits a self-contained Node server with only the dependencies it actually
+  // uses, so the container image does not carry the whole monorepo's
+  // node_modules. Required for running this as a long-lived process rather
+  // than as per-request functions.
+  output: 'standalone',
   poweredByHeader: false,
   async headers() {
     return [{

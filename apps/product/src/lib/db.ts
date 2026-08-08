@@ -1,17 +1,12 @@
 import 'server-only';
 
-import {
-  neon,
-  type NeonQueryFunction,
-  type NeonQueryFunctionInTransaction,
-  type NeonQueryInTransaction,
-} from '@neondatabase/serverless';
+import pg from 'pg';
 import { requireOrganizationContext } from '@/lib/organization-context-store';
 
-type TransactionQuery = NeonQueryFunctionInTransaction<false, false>;
 type QueryRows = Array<Record<string, unknown>>;
+type Statement = { text: string; values: readonly unknown[] };
 
-let client: NeonQueryFunction<false, false> | null = null;
+let pool: pg.Pool | null = null;
 let tenantClient: ScopedSql | null = null;
 let platformClient: ScopedSql | null = null;
 
@@ -19,18 +14,51 @@ export function isDatabaseConfigured() {
   return Boolean(process.env.DATABASE_URL);
 }
 
-function rawClient() {
+/**
+ * One pool for the process lifetime.
+ *
+ * This is the payoff for running as a long-lived server rather than per-request
+ * functions: connections are established once and reused, so the database sees
+ * a small stable set of backends instead of a new one per invocation. It also
+ * means we connect to Neon's DIRECT endpoint -- the pooled endpoint exists to
+ * solve the problem this pool now solves, and stacking them adds a hop for
+ * nothing.
+ */
+function connectionPool() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error('DATABASE_URL is not configured.');
-  if (!client) client = neon(connectionString);
-  return client;
+  if (!pool) {
+    pool = new pg.Pool({
+      connectionString,
+      max: Number(process.env.DATABASE_POOL_MAX ?? 10),
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 10_000,
+    });
+  }
+  return pool;
 }
 
-type QueryExecutor = (queries: readonly ScopedQuery[]) => Promise<QueryRows[]>;
+/** Closes the pool. For graceful shutdown, so in-flight work can drain. */
+export async function closeDatabasePool() {
+  if (pool) {
+    await pool.end();
+    pool = null;
+  }
+}
+
+function templateStatement(strings: TemplateStringsArray, values: readonly unknown[]): Statement {
+  const text = strings.reduce(
+    (acc, part, index) => acc + part + (index < values.length ? `$${index + 1}` : ''),
+    '',
+  );
+  return { text, values };
+}
+
+type QueryExecutor = (statements: readonly Statement[]) => Promise<QueryRows[]>;
 
 class ScopedQuery implements PromiseLike<QueryRows> {
   constructor(
-    readonly build: (transaction: TransactionQuery) => NeonQueryInTransaction,
+    readonly statement: Statement,
     private readonly execute: QueryExecutor,
   ) {}
 
@@ -38,7 +66,7 @@ class ScopedQuery implements PromiseLike<QueryRows> {
     onfulfilled?: ((value: QueryRows) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
-    return this.execute([this])
+    return this.execute([this.statement])
       .then((results) => results[0])
       .then(onfulfilled, onrejected);
   }
@@ -53,64 +81,76 @@ type ScopedSql = {
 };
 
 /**
- * Opens a transaction under `role`, runs the role's prelude, then the caller's
- * queries. Prelude results are stripped so a caller only sees its own rows.
+ * Runs the caller's statements in one transaction, under `role`, after the
+ * role's prelude.
  *
- * Everything here is transaction-scoped on purpose. Neon's pooled endpoint is
- * PgBouncer in transaction mode, so a session-scoped `SET ROLE` or
- * `set_config(..., false)` would work against a direct connection in
- * development and then leak between unrelated requests in production.
+ * `SET LOCAL ROLE` and `set_application_context(..., true)` are both
+ * transaction-scoped. That was mandatory under a transaction-mode pooler and
+ * remains correct here for a stronger reason: a pooled connection is reused by
+ * the next request, so anything left set at session scope would leak tenant
+ * context or an assumed role across requests.
  */
 function createRoleExecutor(
   role: 'contractor_app' | 'platform_runtime',
-  prelude: (transaction: TransactionQuery) => NeonQueryInTransaction[],
+  prelude: () => Statement[],
 ): QueryExecutor {
-  return async (queries) => {
-    let preludeLength = 0;
-    const results = await rawClient().transaction((transaction) => {
-      const preludeQueries = [
-        transaction.query(`SET LOCAL ROLE ${role}`),
-        ...prelude(transaction),
-      ];
-      preludeLength = preludeQueries.length;
-      return [...preludeQueries, ...queries.map((query) => query.build(transaction))];
-    });
-    return results.slice(preludeLength) as QueryRows[];
+  return async (statements) => {
+    const client = await connectionPool().connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL ROLE ${role}`);
+      for (const statement of prelude()) {
+        await client.query(statement.text, [...statement.values]);
+      }
+      const results: QueryRows[] = [];
+      for (const statement of statements) {
+        const result = await client.query(statement.text, [...statement.values]);
+        results.push(result.rows as QueryRows);
+      }
+      await client.query('COMMIT');
+      return results;
+    } catch (error) {
+      // Best-effort: if the connection itself is broken the rollback fails too,
+      // and the original error is the one worth surfacing.
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      // Always. An unreturned connection is a leak, and on a long-running
+      // process it exhausts the pool rather than merely failing one request.
+      client.release();
+    }
   };
 }
 
-const executeTenantQueries = createRoleExecutor('contractor_app', (transaction) => {
+const executeTenantQueries = createRoleExecutor('contractor_app', () => {
   const context = requireOrganizationContext();
-  return [transaction`
-    SELECT set_application_context(
-      ${context.organizationId}::uuid,
-      ${context.actorId}::uuid,
-      ${context.requestId}::uuid
-    )
-  `];
+  return [{
+    text: 'SELECT set_application_context($1::uuid, $2::uuid, $3::uuid)',
+    values: [context.organizationId, context.actorId, context.requestId],
+  }];
 });
 
 // No tenant context, deliberately. platform_runtime holds no BYPASSRLS, so its
 // reach comes from specific SECURITY DEFINER functions rather than a blanket
-// exemption -- and setting a context here would silently scope a cross-tenant
-// job to a single organization.
+// exemption -- and a context here would silently scope a cross-tenant job to a
+// single organization.
 const executePlatformQueries = createRoleExecutor('platform_runtime', () => []);
 
 function createScopedClient(execute: QueryExecutor): ScopedSql {
   const sql = ((
     strings: TemplateStringsArray,
     ...params: unknown[]
-  ) => new ScopedQuery((transaction) => transaction(strings, ...params), execute)) as ScopedSql;
+  ) => new ScopedQuery(templateStatement(strings, params), execute)) as ScopedSql;
 
   sql.query = (query: string, params: readonly unknown[] = []) => (
-    new ScopedQuery((transaction) => transaction.query(query, [...params]), execute)
+    new ScopedQuery({ text: query, values: params }, execute)
   );
 
   sql.transaction = async (queriesOrFactory) => {
     const queries = typeof queriesOrFactory === 'function'
       ? queriesOrFactory(sql)
       : queriesOrFactory;
-    return execute(queries);
+    return execute(queries.map((query) => query.statement));
   };
 
   return sql;
