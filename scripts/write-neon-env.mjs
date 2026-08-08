@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { access, chmod, readFile, writeFile } from 'node:fs/promises';
+import { access, chmod, lstat, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const TARGETS = new Map([
@@ -65,9 +65,12 @@ function validateConnectionString(name, value) {
 }
 
 const environmentName = process.argv[2];
+const mergeExisting = process.argv[3] === '--merge';
 const targetName = TARGETS.get(environmentName);
-if (!targetName) {
-  fail('Usage: node scripts/write-neon-env.mjs development|preview|production');
+if (!targetName || (process.argv[3] && !mergeExisting)) {
+  fail(
+    'Usage: node scripts/write-neon-env.mjs development|preview|production [--merge]',
+  );
 }
 
 let input = '';
@@ -93,24 +96,47 @@ if (
 for (const key of REQUIRED_KEYS) validateConnectionString(key, values[key]);
 
 const target = resolve(process.cwd(), targetName);
+let existing = '';
 try {
   await access(target, constants.F_OK);
-  fail(`${targetName} already exists; refusing to overwrite it.`);
+  if (!mergeExisting) {
+    fail(`${targetName} already exists; use --merge to preserve unrelated values.`);
+  }
+  const metadata = await lstat(target);
+  if (!metadata.isFile() || metadata.isSymbolicLink()) {
+    fail(`${targetName} must be a regular file, not a link.`);
+  }
+  existing = await readFile(target, 'utf8');
+  await chmod(target, 0o600);
 } catch (error) {
   if (error?.code !== 'ENOENT') throw error;
 }
 
-const body = [
+const retained = existing
+  .split(/\r?\n/)
+  .filter((line) => {
+    const key = line.match(/^([A-Z][A-Z0-9_]*)=/)?.[1];
+    return !key || !REQUIRED_KEYS.includes(key);
+  })
+  .join('\n')
+  .trimEnd();
+const databaseBlock = [
   '# Generated locally by scripts/write-neon-env.mjs.',
   '# Gitignored. Never commit or paste these values into logs.',
   ...REQUIRED_KEYS.map((key) => `${key}=${values[key]}`),
-  '',
 ].join('\n');
+const body = `${retained ? `${retained}\n\n` : ''}${databaseBlock}\n`;
 
-await writeFile(target, body, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+await writeFile(target, body, {
+  encoding: 'utf8',
+  mode: 0o600,
+  flag: existing ? 'w' : 'wx',
+});
 await chmod(target, 0o600);
 
 // Read back only to verify the file was fully written. Never emit its contents.
 const written = await readFile(target, 'utf8');
 if (written.length !== body.length) fail(`${targetName} was not written completely.`);
-process.stdout.write(`Wrote ${targetName} with ${REQUIRED_KEYS.length} validated values (mode 0600).\n`);
+process.stdout.write(
+  `${existing ? 'Merged into' : 'Wrote'} ${targetName} with ${REQUIRED_KEYS.length} validated values (mode 0600).\n`,
+);

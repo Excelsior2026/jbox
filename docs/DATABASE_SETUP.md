@@ -2,9 +2,10 @@
 
 How to stand up J-Box's Neon project, branches, and roles.
 
-Everything here is done **once per environment** and is deliberately not automated: it
-creates credentials, and a credential in a migration would land in git and fail
-`npm run secrets:check`.
+Everything here is done **once per environment**. Login roles remain out of migrations,
+but `scripts/provision-neon-branch.mjs` automates their safe creation: it generates credentials
+in memory, creates the roles through SQL, validates the role boundary, and writes only
+gitignored local files with mode `0600`. It never prints credential values.
 
 ## Use a new Neon project, not the predecessor's
 
@@ -13,6 +14,35 @@ The prototype's project is `proud-forest-86717198`, and its single endpoint
 being what `.env.local` and Vercel preview point at. J-Box gets its own project so that
 neither system can affect the other, and so the prototype keeps running untouched during
 the cutover.
+
+## Current provisioned state
+
+Provisioned on 2026-08-08 in the direct **BagelTech** Neon organization:
+
+| Resource | ID / value |
+|---|---|
+| Project | `restless-meadow-35560667` (`jbox`) |
+| Region | `aws-us-east-1` |
+| PostgreSQL | 17 |
+| Database | `jbox` |
+| Production branch | `br-quiet-band-avc4s183` (default) |
+| Preview branch | `br-floral-poetry-avcpaajg` |
+| Development branch | `br-square-wind-av4qdhvq` |
+| Applied schema | `001_foundation.sql` |
+
+All three branches have distinct owner, runtime, and control credentials. Production and
+preview credentials are retained only in gitignored `0600` operator files;
+development credentials are merged into `.env.local`. No owner credential is configured in
+Vercel.
+
+**Open human gate:** production is not yet protected. The current Neon plan permits zero
+protected branches and rejected the protection request. Upgrade the direct BagelTech Neon
+organization before customer data enters production, then protect `production`. Do not treat
+an unprotected production branch as launch-ready.
+
+No J-Box Product or Control Vercel project existed when this database was provisioned, and
+both apps were still package scaffolds without build scripts. Their runtime variables therefore
+remain intentionally unwired rather than being attached to an empty or unrelated project.
 
 ## 1. Create the project
 
@@ -29,27 +59,7 @@ Neon creates an owner role (`jbox_owner` or similar). **That role is for migrati
 It owns the tables and has `CREATEROLE`, which migration 001 needs in order to create
 `contractor_app`, `control_app`, and `platform_runtime`.
 
-## 2. Create branches
-
-Neon's default branch (`main` or `production`) is production. Add two:
-
-```
-production   (default branch)
-├── preview       ← Vercel preview deployments
-└── development   ← local .env.local
-```
-
-Console → **Branches** → **New Branch**, parent `production`, for each.
-
-Create branches **after** step 3 so roles and schema are copied into them, rather than
-having to repeat every step per branch.
-
-> Branch first, then never share. The prototype pointed local, preview, and production at one
-> endpoint as owner. Local development wrote to production, and because the owner holds
-> `BYPASSRLS`, row-level security was inert everywhere — so isolation could not be tested in
-> any environment.
-
-## 3. Apply migration 001 as the owner
+## 2. Apply migration 001 as the owner
 
 Connect with the owner's **unpooled** connection string (migrations run DDL; use the direct
 host, not `-pooler`).
@@ -61,10 +71,52 @@ psql "$DATABASE_URL_OWNER" -v ON_ERROR_STOP=1 -f packages/database/migrations/00
 This creates the three `NOLOGIN` application roles. They are `SET LOCAL ROLE` targets, hold no
 password, and are therefore safe to define in version control.
 
+## 3. Protect production, then create branches
+
+Rename the default branch to `production` and protect it before creating children. Protection
+prevents deletion and reset, and Neon automatically gives child branches distinct passwords for
+copied roles. Protection requires a paid Neon plan.
+
+Add two children of `production`:
+
+```
+production   (default, protected)
+├── preview       ← Vercel preview deployments
+└── development   ← local .env.local
+```
+
+Create branches **after** migration 001 so its schema and passwordless application roles are
+copied into them. Create the login roles only after branching, once per branch, so the runtime
+and control passwords are also distinct.
+
+If protection is unavailable, stop before production launch. For initial development only,
+create the branches and immediately rotate each child branch's copied owner password. The
+provisioning helper enforces that rotation for non-production branches.
+
+> Branch once, then never share endpoints. The prototype pointed local, preview, and production
+> at one endpoint as owner. Local development wrote to production, and because the owner could
+> bypass RLS, isolation could not be tested in any environment.
+
 ## 4. Create the restricted login roles
 
-These carry secrets, so they are created here rather than in a migration. Run as the owner,
-substituting generated passwords:
+These carry secrets, so they are created here rather than in a migration. They must be created
+through SQL. Neon grants roles created through its Console, CLI, or API membership in
+`neon_superuser`; SQL-created roles receive only the privileges explicitly granted below.
+
+For a fresh branch, use the fail-closed helper:
+
+```bash
+node scripts/provision-neon-branch.mjs \
+  restless-meadow-35560667 production production keep-owner
+node scripts/provision-neon-branch.mjs \
+  restless-meadow-35560667 preview preview rotate-owner
+node scripts/provision-neon-branch.mjs \
+  restless-meadow-35560667 development development rotate-owner
+```
+
+The helper refuses existing login roles, refuses to overwrite local credential files, verifies
+that no application role belongs to `neon_superuser`, and never emits passwords or connection
+strings. The equivalent manual SQL is:
 
 ```sql
 -- Application runtime. Not an owner. No BYPASSRLS. NOINHERIT so it holds no
@@ -96,7 +148,11 @@ ORDER BY rolname;
 ```
 
 Every row must show `rolbypassrls = false`. The two login roles must show
-`rolinherit = false`.
+`rolinherit = false`. Also verify that all five roles report false for:
+
+```sql
+pg_has_role(rolname, 'neon_superuser', 'member')
+```
 
 ## 5. Verify isolation before wiring anything up
 
@@ -109,10 +165,13 @@ psql "$DEV_DATABASE_URL_OWNER" -v ON_ERROR_STOP=1 -f packages/database/checks/is
 Expected final line: `isolation.sql: all checks passed`. If it fails, stop — the message names
 the specific guarantee that broke.
 
+The provisioned development branch passed this suite on 2026-08-08. The test transaction rolled
+back, leaving no throwaway organizations behind.
+
 ## 6. Wire the environment variables
 
-Six values per environment. Use the **pooled** host for the runtime and the **unpooled** host
-for migrations.
+Four values exist per environment. Three may be deployed; the owner value is operator-only. Use
+the **pooled** host for runtimes and the **unpooled** host for migrations.
 
 | Variable | Role | Where |
 |---|---|---|
@@ -122,10 +181,12 @@ for migrations.
 | `DATABASE_URL_OWNER` | owner, direct | **local only** — never set in a deployed environment |
 
 ```bash
-# local
-cp .env.example .env.local      # then fill from the development branch
+# local development is already written by the provisioning helper
+# and may be safely recovered/merged without printing values:
+node scripts/provision-neon-branch.mjs \
+  restless-meadow-35560667 development development recover-existing
 
-# Vercel
+# Vercel, after the correct Product project exists and is explicitly linked
 vercel env add DATABASE_URL production      # production branch
 vercel env add DATABASE_URL preview         # preview branch
 ```
@@ -150,6 +211,8 @@ pooler. Keep both scoped.
 
 - Do not point two environments at one branch.
 - Do not put `DATABASE_URL_OWNER` in Vercel.
+- Do not create runtime or control logins through the Neon Console, CLI, or API; those interfaces
+  grant `neon_superuser` membership. Create them through SQL and verify membership afterward.
 - Do not grant `BYPASSRLS` to any role. `checks/isolation.sql` fails the build if you do —
   `BYPASSRLS` silently defeats `FORCE ROW LEVEL SECURITY`, so the protection would look
   present while being absent.
