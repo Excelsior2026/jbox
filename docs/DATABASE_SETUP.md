@@ -28,19 +28,28 @@ Provisioned on 2026-08-08 in the direct **BagelTech** Neon organization:
 | Production branch | `br-quiet-band-avc4s183` (default) |
 | Preview branch | `br-floral-poetry-avcpaajg` |
 | Development branch | `br-square-wind-av4qdhvq` |
-| Applied schema | development: `001` + `002` · preview: `001` · production: `001` |
+| Applied schema | `001` + `002` on **all three** branches, tracked in `_migrations` |
 
 All three branches have distinct owner, runtime, and control credentials. Production and
 preview credentials are retained only in gitignored `0600` operator files;
 development credentials are merged into `.env.local`. No owner credential is configured in
 Vercel.
 
-**Open gate — no migration ledger yet.** Migrations are being applied by hand with `psql`, so
-nothing records which branch is at which version; the table above is maintained manually and
-will drift. This is the same failure the predecessor hit, where `040` sat committed and
-unapplied for weeks with nothing to notice. `packages/database/migrate.mjs` with a
-checksum-guarded `_migrations` ledger should land before any further schema work, and the
-branches above should then be brought to a common version through it rather than by hand.
+**Migration ledger — resolved 2026-08-08.** All three branches are under
+`packages/database/migrate.mjs` and report `up to date`. The hand-applied `001` was recorded
+with `--adopt=001_foundation.sql` (records without executing), then `002` was applied through
+the runner. From here, use the runner and never `psql -f` a migration:
+
+```bash
+npm run db:status                                  # development
+npm run db:migrate
+node --env-file-if-exists=.env.neon.preview.local    packages/database/migrate.mjs
+node --env-file-if-exists=.env.neon.production.local packages/database/migrate.mjs
+```
+
+Production verified read-only after `002`: 8 tables, **0** RLS-enabled-but-not-forced, **0**
+roles holding `BYPASSRLS`, **0** nullable `organization_id`, 0 business rows. The destructive
+check suites were run against development and preview only.
 
 **Verified against the development branch on 2026-08-08** (Neon PostgreSQL 17.10), after
 applying `002`:
