@@ -28,12 +28,31 @@ Provisioned on 2026-08-08 in the direct **BagelTech** Neon organization:
 | Production branch | `br-quiet-band-avc4s183` (default) |
 | Preview branch | `br-floral-poetry-avcpaajg` |
 | Development branch | `br-square-wind-av4qdhvq` |
-| Applied schema | `001_foundation.sql` |
+| Applied schema | development: `001` + `002` · preview: `001` · production: `001` |
 
 All three branches have distinct owner, runtime, and control credentials. Production and
 preview credentials are retained only in gitignored `0600` operator files;
 development credentials are merged into `.env.local`. No owner credential is configured in
 Vercel.
+
+**Open gate — no migration ledger yet.** Migrations are being applied by hand with `psql`, so
+nothing records which branch is at which version; the table above is maintained manually and
+will drift. This is the same failure the predecessor hit, where `040` sat committed and
+unapplied for weeks with nothing to notice. `packages/database/migrate.mjs` with a
+checksum-guarded `_migrations` ledger should land before any further schema work, and the
+branches above should then be brought to a common version through it rather than by hand.
+
+**Verified against the development branch on 2026-08-08** (Neon PostgreSQL 17.10), after
+applying `002`:
+
+- `isolation.sql` and `documents.sql` both pass.
+- All five roles report `rolbypassrls = false` and `rolinherit = false`; `contractor_app`,
+  `control_app`, and `platform_runtime` report `rolcanlogin = false`.
+- Through the **pooled** endpoint, `jbox_runtime` with no role assumed gets
+  `permission denied for table organizations` — `NOINHERIT` is doing its job. The same pooled
+  connection, opening a transaction with `SET LOCAL ROLE contractor_app` and
+  `set_application_context()`, reads correctly as `current_user = contractor_app`. Transaction
+  pooling and the transaction-scoped settings agree in practice, not just on paper.
 
 **Open human gate:** production is not yet protected. The current Neon plan permits zero
 protected branches and rejected the protection request. Upgrade the direct BagelTech Neon
