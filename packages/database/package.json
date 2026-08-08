@@ -4,12 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint": "eslint src --max-warnings=0"
+    "lint": "eslint src --max-warnings=0",
+    "test": "vitest run"
   },
   "devDependencies": {
-    "eslint": "^9"
+    "eslint": "^9",
+    "vitest": "^4.1.10",
+    "typescript": "^5"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.2"
+    "@neondatabase/serverless": "^1.0.2",
+    "pg": "^8.13.1"
   }
 }

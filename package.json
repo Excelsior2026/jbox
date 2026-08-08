@@ -17,9 +17,9 @@
     "secrets:check": "node scripts/secret-scan.mjs",
     "audit:production": "npm audit --omit=dev --audit-level=high",
     "verify:ci": "npm run secrets:check && npm run lint && npm test && npm run build:all && npm run audit:production",
-    "db:migrate": "node --env-file=.env.local packages/database/migrate.mjs",
-    "db:check": "node --env-file=.env.local packages/database/check.mjs",
-    "db:rls:check": "node --env-file=.env.local packages/database/rls-check.mjs"
+    "db:migrate": "node --env-file-if-exists=.env.local packages/database/migrate.mjs",
+    "db:status": "node --env-file-if-exists=.env.local packages/database/migrate.mjs --status",
+    "db:verify": "node --env-file-if-exists=.env.local packages/database/verify.mjs"
   },
   "engines": {
     "node": ">=22"

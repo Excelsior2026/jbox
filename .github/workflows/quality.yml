@@ -33,7 +33,9 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: npm run db:rls:check
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: npm run db:verify
         env:
-          DATABASE_URL: ${{ secrets.RLS_CHECK_DATABASE_URL }}
-          DATABASE_URL_UNPOOLED: ${{ secrets.RLS_CHECK_DATABASE_URL }}
+          # Owner credential for a DISPOSABLE branch. The checks write and then
+          # roll back, so this must never point at production.
+          DATABASE_URL_OWNER: ${{ secrets.VERIFY_DATABASE_URL_OWNER }}
