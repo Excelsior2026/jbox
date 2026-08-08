@@ -1,0 +1,39 @@
+name: quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run secrets:check
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build:all
+      - run: npm run audit:production
+
+  # Isolation guarantees are worth nothing if nothing re-checks them. The
+  # predecessor left db:rls:check as a manual step and it drifted.
+  isolation:
+    runs-on: ubuntu-latest
+    if: ${{ vars.RLS_CHECK_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run db:rls:check
+        env:
+          DATABASE_URL: ${{ secrets.RLS_CHECK_DATABASE_URL }}
+          DATABASE_URL_UNPOOLED: ${{ secrets.RLS_CHECK_DATABASE_URL }}

@@ -1,0 +1,33 @@
+{
+  "name": "jbox",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @contractor-platform/product",
+    "dev:control": "npm run dev --workspace @contractor-platform/control",
+    "build": "npm run build --workspace @contractor-platform/product",
+    "build:all": "npm run build --workspaces --if-present",
+    "start": "npm run start --workspace @contractor-platform/product",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "secrets:check": "node scripts/secret-scan.mjs",
+    "audit:production": "npm audit --omit=dev --audit-level=high",
+    "verify:ci": "npm run secrets:check && npm run lint && npm test && npm run build:all && npm run audit:production",
+    "db:migrate": "node --env-file=.env.local packages/database/migrate.mjs",
+    "db:check": "node --env-file=.env.local packages/database/check.mjs",
+    "db:rls:check": "node --env-file=.env.local packages/database/rls-check.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "eslint": "^9",
+    "typescript": "^5",
+    "typescript-eslint": "^8.66.0",
+    "vitest": "^4.1.10"
+  }
+}
