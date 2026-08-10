@@ -44,8 +44,8 @@ None of it needs remediating here. It needs **not being written**.
 | Foreman safety triage | `foreman-triage.ts` + its vitest suite. Real false-negatives were found and fixed here ("sparks", "got shocked"); do not rewrite from scratch. |
 | Customer access tokens | Hashed, scoped, expiring, revocable, version-bound links. Approval single-use and idempotent. |
 | Transactional outbox | Durable delivery with claim semantics, drained by cron. |
-| Configuration schema | Versioned, approval-gated, immutable. **Approval-flagged claims** (license/insurance text renders only when affirmatively approved) is a legal safety property — port it deliberately. |
-| Public-site template catalog | Six templates, `as const satisfies`, runtime type guards, catalog versioning. |
+| Configuration schema | **Ported** (`packages/configuration`, migration 003). Versioned, approval-gated, immutable. The predecessor's **approval-flagged claims** are deliberately out of scope here: product scope drops the claims system, and the schema is built to keep regulatory language out even if it returns. |
+| Public-site template catalog | **Ported** (`packages/configuration/src/templates.ts`). Six templates, `as const satisfies`, runtime type guards, catalog versioning, theme class derived from template id so the CSS binding cannot drift. |
 | `platformDb()` role-switched client | Written for the predecessor's Phase 1; belongs here from day one. See below. |
 | Verification discipline | `verify:ci` chain, `db:*:check` scripts, secret scanning. |
 
