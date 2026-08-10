@@ -246,7 +246,9 @@ BEGIN
   SELECT id INTO customer FROM customers WHERE display_id = 'PE-CUS-0001';
   SELECT id INTO estimate FROM estimates WHERE display_id = 'PE-EST-0001';
   UPDATE estimates
-  SET status = 'signed', content_hash = repeat('a', 64), signed_at = now(), signed_by_name = 'A. Homeowner'
+  SET status = 'signed', content_hash = repeat('a', 64), signed_at = now(), signed_by_name = 'A. Homeowner',
+      customer_name = 'A. Homeowner', customer_phone = '6315550100',
+      customer_email = 'a@example.com', customer_address = '14 Maple Dr', customer_town = 'Smithtown'
   WHERE id = estimate;
 
   INSERT INTO jobs (document_number, display_id, customer_id, estimate_id, title)

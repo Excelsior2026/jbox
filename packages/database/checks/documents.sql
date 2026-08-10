@@ -101,7 +101,12 @@ BEGIN
   SET status = 'signed',
       content_hash = repeat('a', 64),
       signed_at = now(),
-      signed_by_name = 'A. Homeowner'
+      signed_by_name = 'A. Homeowner',
+      customer_name = 'A. Homeowner',
+      customer_phone = '6315550100',
+      customer_email = 'a@example.com',
+      customer_address = '14 Maple Dr',
+      customer_town = 'Smithtown'
   WHERE id = target;
 
   BEGIN

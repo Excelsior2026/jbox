@@ -188,6 +188,12 @@ $$;
 -- --------------------------------------------------------------------------
 -- 6. No tenant-owned table permits a NULL organization_id
 -- --------------------------------------------------------------------------
+-- clerk_webhook_events is the deliberate exception: it is platform-owned
+-- metadata. Its organization_id is an attribution resolved from the event (and
+-- NULL for events that concern no organization, such as a user profile change),
+-- so it must be nullable. The table has no app-role policy that leaks it as
+-- tenant data -- platform_runtime and control_app manage it, and neither runs
+-- in tenant context.
 DO $$
 DECLARE
   nullable text;
@@ -197,7 +203,8 @@ BEGIN
   JOIN pg_namespace n ON n.oid = c.relnamespace
   JOIN pg_attribute a ON a.attrelid = c.oid
    AND a.attname = 'organization_id' AND NOT a.attisdropped
-  WHERE n.nspname = 'public' AND c.relkind = 'r' AND NOT a.attnotnull;
+  WHERE n.nspname = 'public' AND c.relkind = 'r' AND NOT a.attnotnull
+    AND c.relname <> 'clerk_webhook_events';
   IF nullable IS NOT NULL THEN
     RAISE EXCEPTION 'organization_id is nullable on: %. Unattributed rows are possible.', nullable;
   END IF;

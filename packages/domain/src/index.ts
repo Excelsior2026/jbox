@@ -84,6 +84,16 @@ export function hasCapability(
   return capabilities.has(capability);
 }
 
+/**
+ * What a customer access link authorizes. A purpose never names an action the
+ * bearer may perform beyond its document; the decision route reconciles
+ * `estimate.sign` with the customer's approve or decline choice.
+ *
+ * Mirrors the `document_type` + `purpose` columns of customer_access_grants:
+ * the domain name and the storage split are different views of one set.
+ */
+export type CustomerAccessPurpose = 'estimate.sign' | 'estimate.view' | 'invoice.view';
+
 export type OrganizationContext = {
   organizationId: string;
   verifiedHostname: string;
