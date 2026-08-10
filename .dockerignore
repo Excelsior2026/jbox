@@ -1,0 +1,12 @@
+# The Docker build context is the repository root, so keep it small: without
+# this, node_modules and every .next build dir get uploaded on each deploy.
+**/node_modules
+**/.next
+**/.git
+**/coverage
+.vercel
+.env*
+!.env.example
+**/*.log
+tmp
+output
