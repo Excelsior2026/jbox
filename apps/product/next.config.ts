@@ -30,6 +30,11 @@ const nextConfig: NextConfig = {
   // node_modules. Required for running this as a long-lived process rather
   // than as per-request functions.
   output: 'standalone',
+  // Workspace packages export TS source directly; Next must compile them.
+  transpilePackages: [
+    '@contractor-platform/configuration',
+    '@contractor-platform/money',
+  ],
   poweredByHeader: false,
   async headers() {
     return [{

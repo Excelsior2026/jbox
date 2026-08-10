@@ -1,0 +1,208 @@
+/*
+ * Storefront theming.
+ *
+ * Templates vary presentation, never structure. Each template id maps to a
+ * `tpl-<id>` class on <body> (derived in code, see packages/configuration);
+ * this file defines what each class changes. Brand colors arrive as CSS custom
+ * properties on :root from the tenant's config, so the six templates plus a
+ * tenant's palette compose into a distinct storefront.
+ */
+
+:root {
+  --brand-primary: #111827;
+  --brand-accent: #2563eb;
+  --brand-surface: #ffffff;
+  --text: #111827;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --display-font: Georgia, 'Times New Roman', serif;
+  --body-font: system-ui, -apple-system, sans-serif;
+  --radius: 6px;
+  --shell-max: 1080px;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  font-family: var(--body-font);
+  color: var(--text);
+  background: var(--brand-surface);
+  line-height: 1.55;
+}
+
+a { color: var(--brand-accent); }
+
+.container {
+  max-width: var(--shell-max);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* --- Templates ----------------------------------------------------------- */
+
+.tpl-heritage-craft {
+  --display-font: Georgia, 'Times New Roman', serif;
+  --radius: 2px;
+}
+
+.tpl-modern-grid {
+  --display-font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --radius: 8px;
+}
+
+.tpl-neighborly-warm {
+  --display-font: 'Trebuchet MS', Verdana, sans-serif;
+  --radius: 14px;
+}
+
+.tpl-industrial-pro {
+  --display-font: 'Arial Narrow', 'Franklin Gothic Medium', Arial, sans-serif;
+  --radius: 0px;
+  --hero-invert: true;
+}
+
+.tpl-premium-home {
+  --display-font: 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+  --radius: 4px;
+}
+
+.tpl-direct-response {
+  --display-font: Verdana, Geneva, sans-serif;
+  --radius: 999px;
+}
+
+/* --- Site header / footer ------------------------------------------------ */
+
+.site-header {
+  border-bottom: 1px solid var(--line);
+  background: var(--brand-surface);
+}
+
+.site-header .container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+.brand-name {
+  font-family: var(--display-font);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.site-nav { display: flex; gap: 20px; align-items: center; }
+.site-nav a { text-decoration: none; font-weight: 600; }
+
+.site-footer {
+  border-top: 1px solid var(--line);
+  margin-top: 64px;
+  padding: 28px 0 40px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* --- Buttons ------------------------------------------------------------- */
+
+.button {
+  display: inline-block;
+  background: var(--brand-accent);
+  color: #ffffff;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  text-decoration: none;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.button.secondary {
+  background: transparent;
+  color: var(--brand-accent);
+  border: 1px solid var(--brand-accent);
+}
+
+/* --- Hero ---------------------------------------------------------------- */
+
+.hero {
+  padding: 72px 0 56px;
+  background:
+    radial-gradient(120% 100% at 80% 0%, color-mix(in srgb, var(--brand-accent) 12%, transparent), transparent 55%),
+    var(--brand-surface);
+}
+
+.hero h1 {
+  font-family: var(--display-font);
+  font-size: clamp(2.2rem, 5vw, 3.4rem);
+  line-height: 1.1;
+  margin: 0 0 16px;
+  max-width: 18ch;
+}
+
+.hero p { font-size: 1.15rem; color: var(--muted); max-width: 52ch; }
+
+.hero .cta-row { display: flex; gap: 14px; margin-top: 28px; flex-wrap: wrap; }
+
+/* --- Sections / cards ---------------------------------------------------- */
+
+.section { padding: 48px 0; }
+.section h2 { font-family: var(--display-font); font-size: 1.9rem; margin-top: 0; }
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  background: var(--brand-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.card h3 { margin: 0; font-family: var(--display-font); font-size: 1.2rem; }
+.card p { margin: 0; color: var(--muted); }
+.card .price { font-weight: 700; color: var(--text); margin-top: auto; padding-top: 10px; }
+
+/* --- Forms --------------------------------------------------------------- */
+
+.form {
+  display: grid;
+  gap: 14px;
+  max-width: 640px;
+}
+
+.form label { font-weight: 600; font-size: 0.95rem; display: grid; gap: 6px; }
+
+.form input, .form textarea, .form select {
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--text);
+}
+
+.form input:focus, .form textarea:focus { outline: 2px solid var(--brand-accent); outline-offset: 0; }
+
+.form .error {
+  color: #b91c1c;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.form .ok {
+  color: #15803d;
+  font-weight: 700;
+}
