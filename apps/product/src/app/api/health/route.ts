@@ -16,7 +16,7 @@ export async function GET() {
     try {
       const rows = await platformDb().query(
         "SELECT EXISTS (SELECT 1 FROM _migrations WHERE name = $1) AS schema_ready",
-        ['002_customers_and_estimates.sql'],
+        ['004_service_requests_jobs_invoices_receipts_inventory.sql'],
       );
       checks.database = true;
       checks.schema = Boolean(rows[0]?.schema_ready);

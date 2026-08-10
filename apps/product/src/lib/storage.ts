@@ -15,10 +15,15 @@ import { dirname, isAbsolute, join, normalize } from 'node:path';
  * what makes swapping this for real object storage later a local change.
  */
 
-const STORAGE_DIR = process.env.STORAGE_DIR ?? join(process.cwd(), 'uploads');
-
+/**
+ * The storage root. Read at call time (not module scope) so tests can point it
+ * at a temp directory per case; in production it is fixed for the process
+ * lifetime.
+ */
 export function storageRoot(): string {
-  return STORAGE_DIR;
+  // Dev fallback only; production sets STORAGE_DIR (Fly volume). The ignore
+  // comment is turbopack's documented opt-out for this cwd-relative path.
+  return process.env.STORAGE_DIR ?? join(/*turbopackIgnore: true*/ process.cwd(), 'uploads');
 }
 
 export async function saveUpload(buffer: Buffer, extension: string): Promise<string> {
@@ -36,7 +41,11 @@ export async function readUpload(key: string): Promise<Buffer> {
 
 function resolveWithinStorage(key: string): string {
   if (!key || key.includes('\0')) throw new Error('Invalid storage key.');
-  const root = normalize(isAbsolute(STORAGE_DIR) ? STORAGE_DIR : join(process.cwd(), STORAGE_DIR));
+  const rawRoot = storageRoot();
+  // Dev-only relative-root convenience; production STORAGE_DIR is absolute.
+  const root = normalize(
+    isAbsolute(rawRoot) ? rawRoot : join(/*turbopackIgnore: true*/ process.cwd(), rawRoot),
+  );
   const resolved = normalize(join(root, key));
   if (!resolved.startsWith(root)) {
     throw new Error('Storage key escapes the storage root.');

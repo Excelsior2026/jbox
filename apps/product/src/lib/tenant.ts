@@ -3,6 +3,7 @@ import 'server-only';
 import { headers } from 'next/headers';
 import { validateConfigDocument, type ConfigV1 } from '@contractor-platform/configuration';
 import { db, platformDb } from '@/lib/db';
+import { classifyHost, hostnameOf, tenantSubdomainFromHost } from '@/lib/host';
 import { runWithOrganizationContext } from '@/lib/organization-context-store';
 
 /**
@@ -15,16 +16,6 @@ import { runWithOrganizationContext } from '@/lib/organization-context-store';
  * host, and any deployment hostname. It carries no tenant data.
  */
 
-const TENANT_DOMAIN = '.usejbox.com';
-
-/** Hostnames that are platform surfaces, not tenants. */
-const PLATFORM_HOSTS = new Set([
-  'usejbox.com',
-  'www.usejbox.com',
-  'app.usejbox.com',
-  'field.usejbox.com',
-]);
-
 export class TenantResolutionError extends Error {
   constructor(
     readonly code: 'no-host' | 'platform-host' | 'unverified-host' | 'not-configured',
@@ -32,20 +23,6 @@ export class TenantResolutionError extends Error {
     super(`TenantResolutionError: ${code}`);
     this.name = 'TenantResolutionError';
   }
-}
-
-/**
- * The tenant subdomain implied by a Host header, or null for a platform host or
- * a host outside the tenant domain. Ports are stripped; casing normalized.
- */
-export function tenantSubdomainFromHost(host: string | null | undefined): string | null {
-  if (!host) return null;
-  const hostname = host.split(':')[0].toLowerCase();
-  if (PLATFORM_HOSTS.has(hostname)) return null;
-  if (hostname.endsWith(TENANT_DOMAIN)) {
-    return hostname.slice(0, -TENANT_DOMAIN.length);
-  }
-  return null;
 }
 
 export type TenantContext = {
@@ -56,19 +33,20 @@ export type TenantContext = {
 
 /**
  * Resolves the request's tenant and runs `work` inside that tenant's async
- * context. Fails closed: an unverified hostname throws before any tenant query
- * runs.
+ * context. Fails closed: a hostname that is not a verified, active tenant
+ * throws before any tenant query runs.
  */
 export async function withTenant<T>(work: (tenant: TenantContext) => Promise<T>): Promise<T> {
-  const hostname = (await headers()).get('host') ?? '';
-  const subdomain = tenantSubdomainFromHost(hostname);
-  if (!subdomain) {
-    throw new TenantResolutionError(hostname ? 'platform-host' : 'no-host');
+  const host = (await headers()).get('host') ?? '';
+  const kind = classifyHost(host);
+  if (kind !== 'tenant') {
+    throw new TenantResolutionError(kind === 'platform' ? 'platform-host' : 'no-host');
   }
+  const subdomain = tenantSubdomainFromHost(host)!;
 
   const rows = await platformDb().query(
     'SELECT resolve_verified_organization($1) AS organization_id',
-    [hostname],
+    [hostnameOf(host)],
   );
   const organizationId = rows[0]?.organization_id;
   if (typeof organizationId !== 'string') {
@@ -81,7 +59,7 @@ export async function withTenant<T>(work: (tenant: TenantContext) => Promise<T>)
       actorId: null,
       requestId: crypto.randomUUID(),
     },
-    () => work({ organizationId, subdomain, hostname }),
+    () => work({ organizationId, subdomain, hostname: hostnameOf(host) }),
   );
 }
 
@@ -91,26 +69,36 @@ export type StorefrontData = {
 };
 
 /**
+ * The single approved, in-force configuration document for the current tenant.
+ * Requires tenant context (run inside withTenant). Returns null when no
+ * approved document is in force yet.
+ */
+export async function loadInForceConfig(): Promise<ConfigV1 | null> {
+  const rows = await db().query(
+    `SELECT document
+       FROM configuration_versions
+      WHERE status = 'approved'
+        AND superseded_at IS NULL
+      ORDER BY version DESC
+      LIMIT 1`,
+    [],
+  );
+  const raw = rows[0]?.document;
+  return raw ? validateConfigDocument(raw) : null;
+}
+
+/**
  * Loads everything a storefront page needs: the resolved tenant and the single
  * approved, in-force configuration document. A tenant with no approved config
  * yet reads as not-configured, so the storefront never renders half a tenant.
  */
 export async function loadStorefront(): Promise<StorefrontData> {
   return withTenant(async (tenant) => {
-    const rows = await db().query(
-      `SELECT document
-         FROM configuration_versions
-        WHERE status = 'approved'
-          AND superseded_at IS NULL
-        ORDER BY version DESC
-        LIMIT 1`,
-      [],
-    );
-    const raw = rows[0]?.document;
-    if (!raw) {
+    const config = await loadInForceConfig();
+    if (!config) {
       throw new TenantResolutionError('not-configured');
     }
-    return { config: validateConfigDocument(raw), tenant };
+    return { config, tenant };
   });
 }
 
