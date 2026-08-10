@@ -33,7 +33,7 @@ Provisioned on 2026-08-08 in the direct **BagelTech** Neon organization:
 All three branches have distinct owner, runtime, and control credentials. Production and
 preview credentials are retained only in gitignored `0600` operator files;
 development credentials are merged into `.env.local`. No owner credential is configured in
-Vercel.
+any deployed environment.
 
 **Migration ledger — resolved 2026-08-08.** All three branches are under
 `packages/database/migrate.mjs` and report `up to date`. The hand-applied `001` was recorded
@@ -68,9 +68,9 @@ protected branches and rejected the protection request. Upgrade the direct Bagel
 organization before customer data enters production, then protect `production`. Do not treat
 an unprotected production branch as launch-ready.
 
-No J-Box Product or Control Vercel project existed when this database was provisioned, and
+No J-Box Product or Control deployment existed when this database was provisioned, and
 both apps were still package scaffolds without build scripts. Their runtime variables therefore
-remain intentionally unwired rather than being attached to an empty or unrelated project.
+remain intentionally unwired rather than being attached to an empty or unrelated deployment.
 
 ## 1. Create the project
 
@@ -198,17 +198,22 @@ back, leaving no throwaway organizations behind.
 
 ## 6. Wire the environment variables
 
-Four values exist per environment. Three may be deployed; the owner value is operator-only. Use
-the **direct (unpooled)** host everywhere. The applications run as long-lived Node processes
-and maintain their own `pg` connection pool, so Neon's pooled endpoint would be a second pool
-in front of ours -- an extra hop solving a problem we no longer have.
+Four values exist per environment. Three may be deployed; the owner value is operator-only. The
+applications run as long-lived Node processes and maintain their own `pg` connection pool, so
+they connect to the **direct (unpooled)** endpoint via `DATABASE_URL_UNPOOLED` — Neon's pooled
+endpoint would be a second pool in front of ours, an extra hop solving a problem we no longer
+have.
 
-| Variable | Role | Where |
-|---|---|---|
-| `DATABASE_URL` | `jbox_runtime`, direct | all environments |
-| `DATABASE_URL_UNPOOLED` | `jbox_runtime`, direct | all environments |
-| `CONTROL_DATABASE_URL` | `jbox_control`, direct | all environments |
-| `DATABASE_URL_OWNER` | owner, direct | **local only** — never set in a deployed environment |
+| Variable | Role | Endpoint | Where |
+|---|---|---|---|
+| `DATABASE_URL` | `jbox_runtime` | pooled | all environments (provisioned default) |
+| `DATABASE_URL_UNPOOLED` | `jbox_runtime` | **direct** | all environments — the app's own pool reads this |
+| `CONTROL_DATABASE_URL` | `jbox_control` | pooled | all environments (control plane) |
+| `DATABASE_URL_OWNER` | owner | direct | **local only** — never set in a deployed environment |
+
+The product app pools against `DATABASE_URL_UNPOOLED` (falling back to `DATABASE_URL`); the
+control app connects with `CONTROL_DATABASE_URL`. Keep `DATABASE_URL` too — the provisioning
+helper writes it and nothing assumes its absence.
 
 ```bash
 # local development is already written by the provisioning helper
@@ -216,9 +221,11 @@ in front of ours -- an extra hop solving a problem we no longer have.
 node scripts/provision-neon-branch.mjs \
   restless-meadow-35560667 development development recover-existing
 
-# Vercel, after the correct Product project exists and is explicitly linked
-vercel env add DATABASE_URL production      # production branch
-vercel env add DATABASE_URL preview         # preview branch
+# Fly.io, per app. The product app runs Storefront and Field; the control app
+# is the operator plane. Never set DATABASE_URL_OWNER here.
+fly secrets set --app jbox-product \
+  DATABASE_URL='<prod pooled>' DATABASE_URL_UNPOOLED='<prod direct>'
+fly secrets set --app jbox-control CONTROL_DATABASE_URL='<prod pooled>'
 ```
 
 `DATABASE_URL_OWNER` existing only on your machine is what keeps a deployed application from
@@ -244,7 +251,7 @@ pooler. Keep both scoped.
 ## What not to do
 
 - Do not point two environments at one branch.
-- Do not put `DATABASE_URL_OWNER` in Vercel.
+- Do not put `DATABASE_URL_OWNER` in any deployed environment (Fly secrets, Vercel, or otherwise).
 - Do not create runtime or control logins through the Neon Console, CLI, or API; those interfaces
   grant `neon_superuser` membership. Create them through SQL and verify membership afterward.
 - Do not grant `BYPASSRLS` to any role. `checks/isolation.sql` fails the build if you do —

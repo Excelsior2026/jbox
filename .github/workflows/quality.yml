@@ -22,10 +22,12 @@ jobs:
       - run: npm run audit:production
 
   # Isolation guarantees are worth nothing if nothing re-checks them. The
-  # predecessor left db:rls:check as a manual step and it drifted.
+  # predecessor left db:rls:check as a manual step and it drifted. Runs
+  # whenever the disposable-branch owner credential is configured, so there is
+  # no manual flag to forget to turn on.
   isolation:
     runs-on: ubuntu-latest
-    if: ${{ vars.RLS_CHECK_ENABLED == 'true' }}
+    if: ${{ secrets.VERIFY_DATABASE_URL_OWNER != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

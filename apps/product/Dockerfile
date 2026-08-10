@@ -1,6 +1,6 @@
 # Build context is the REPOSITORY ROOT, not this directory — the build needs
 # the workspace root package-lock.json and the packages/* this app depends on.
-# Railway is configured with rootDirectory "/" and this file's path.
+# Deployed with `fly deploy --config fly.product.toml` from the repository root.
 
 FROM node:22-alpine AS builder
 WORKDIR /app
