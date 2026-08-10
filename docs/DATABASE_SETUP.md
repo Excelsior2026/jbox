@@ -187,14 +187,16 @@ pg_has_role(rolname, 'neon_superuser', 'member')
 Against the **development** branch only — it provisions throwaway organizations and rolls back:
 
 ```bash
-psql "$DEV_DATABASE_URL_OWNER" -v ON_ERROR_STOP=1 -f packages/database/checks/isolation.sql
+npm run db:verify
 ```
 
-Expected final line: `isolation.sql: all checks passed`. If it fails, stop — the message names
-the specific guarantee that broke.
+Runs every suite in `packages/database/checks/` (isolation, documents, pricing) through the
+bundled node-pg runner, so no `psql` binary is required. Each suite's final line reads
+`all checks passed`; a single failed assertion fails that suite. If it fails, stop — the message
+names the specific guarantee that broke.
 
-The provisioned development branch passed this suite on 2026-08-08. The test transaction rolled
-back, leaving no throwaway organizations behind.
+The provisioned development branch passed these suites on 2026-08-10. The test transactions
+rolled back, leaving no throwaway organizations behind.
 
 ## 6. Wire the environment variables
 

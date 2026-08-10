@@ -1,6 +1,6 @@
 # Foundation Decisions
 
-The four questions the porting ledger reserved, settled. Each was a defect in the
+The questions the porting ledger reserved, settled. Each was a defect in the
 predecessor; each is cheap to get right now and expensive later.
 
 ---
@@ -110,6 +110,43 @@ connected as the one role exempt from it.
 which is what keeps decisions 2 and 3 from decaying.
 
 ---
+
+## 5. Pricing enters documents only through a published release
+
+**Decision.** An item's price is its version history (append-only). A release binds
+the exact item versions in force at publish time; a published release is immutable
+and is the only pricing a commercial document may reference (migration 004 adds the
+FK that makes this structural). One open draft per organization keeps "which pricing
+is next" unambiguous; the history is the published releases.
+
+**What went wrong before.** The predecessor priced estimates by snapshotting whatever
+the price book held at line-entry time. Nothing froze the referenced pricing, so an
+estimate issued on Tuesday could silently renumber under a price edit on Wednesday —
+and a document already accepted by a customer would change without a record. There was
+no notion of "what was in force when" for either the estimate or the price book itself.
+
+**Why append-only versions rather than just an `updated_at`.** `updated_at` records
+*that* a price changed, not *which* price was in force, and not *who* changed it.
+`price_book_item_versions.version` is a monotonically increasing integer per item, so
+"the price of PANEL-100 in release 17" is a precise, reviewable fact rather than an
+as-of-now guess.
+
+## 6. Tenant configuration is one versioned, immutable document
+
+**Decision.** Each tenant has exactly one configuration record stream, append-only,
+whose in-force version the storefront and rendered documents read. Approving a newer
+version (supersede-then-approve, atomically) replaces the in-force document. The
+document holds business facts and branding only — no approval-gated regulatory claims.
+
+**Why a document rather than a bag of tables.** The storefront (template id, colors,
+services, copy) and the rendered documents (branding, prefixes, footer) must be
+consistent and atomic: a storefront must not render a half-saved half of a config.
+One JSON document gives that atomicity for free, and the versioned-immutable shape
+makes "what was shown to a customer on Tuesday" recoverable.
+
+**What it deliberately does not hold.** No claims content, no liability language, no
+approval-gated copy. The claims system was removed from product scope, and this
+document is built to keep that out of the schema even if it returns as a feature.
 
 ## Not settled here
 
