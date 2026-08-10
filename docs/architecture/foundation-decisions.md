@@ -49,7 +49,7 @@ only within an organization and nothing joins on it.
 | Role | Login | `BYPASSRLS` | Assumed by |
 |---|---|---|---|
 | `contractor_app` | no | no | tenant-scoped work — `db()` |
-| `platform_runtime` | no | **yes** | cross-tenant paths with no tenant — `platformDb()` |
+| `platform_runtime` | no | **no** | cross-tenant paths with no tenant — `platformDb()` |
 | `control_app` | no | no | operator plane — `controlDb()` |
 | *(owner)* | yes | — | `npm run db:migrate` only |
 
@@ -64,12 +64,18 @@ connection, so webhook, cron, health, and hostname-resolution paths ran with tot
 access. Isolation was decided by a deployment credential rather than by anything visible in
 code.
 
-**Why `platform_runtime` holds `BYPASSRLS` deliberately.** Stripe and Clerk webhooks and the
-outbox drain arrive with no Host header, so there is no tenant to scope to. Those paths need
-cross-tenant reach. The question is only whether that reach is *granted explicitly* or
-*inherited silently*. Naming it in the role makes it greppable, and it means the
-connecting credential can be demoted without breaking webhooks. Explicit cross-tenant policies
-per table remain the upgrade path if a compliance requirement demands one.
+**Why `platform_runtime` holds no `BYPASSRLS`.** Stripe and Clerk webhooks and the outbox
+drain arrive with no Host header, so there is no tenant to scope to. Those paths need
+cross-tenant reach, but it is granted one narrow SECURITY DEFINER function at a time
+(`resolve_verified_organization` is the first), each a reviewable window rather than a blanket
+exemption. A webhook resolves its organization through one of those windows and then does its
+per-tenant writes inside normal tenant context.
+
+Two consequences keep this honest. Postgres only lets a `BYPASSRLS` role create another
+`BYPASSRLS` role, so a blanket-bypass design would force the migration owner to hold the
+attribute that defeats the isolation it is creating. And without it, the schema applies on
+stock PostgreSQL with an ordinary non-superuser owner — nothing depends on a provider's role
+attributes.
 
 ---
 

@@ -66,6 +66,14 @@ try {
     )
   `);
 
+  // The product health probe reads the ledger as platform_runtime. _migrations
+  // is created by this runner, not by a migration, so no migration grants it --
+  // the read has to be granted here. It is safe to run on every invocation, which
+  // is what lets branches migrated before this line pick the grant up next run.
+  await client.query(
+    'GRANT SELECT ON _migrations TO contractor_app, control_app, platform_runtime',
+  );
+
   const ledger = await client.query('SELECT name, checksum FROM _migrations');
   const applied = new Map(ledger.rows.map((row) => [row.name, row.checksum]));
 

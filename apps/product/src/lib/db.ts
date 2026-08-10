@@ -11,7 +11,7 @@ let tenantClient: ScopedSql | null = null;
 let platformClient: ScopedSql | null = null;
 
 export function isDatabaseConfigured() {
-  return Boolean(process.env.DATABASE_URL);
+  return Boolean(process.env.DATABASE_URL || process.env.DATABASE_URL_UNPOOLED);
 }
 
 /**
@@ -23,9 +23,13 @@ export function isDatabaseConfigured() {
  * means we connect to Neon's DIRECT endpoint -- the pooled endpoint exists to
  * solve the problem this pool now solves, and stacking them adds a hop for
  * nothing.
+ *
+ * The direct endpoint lives in DATABASE_URL_UNPOOLED (the provisioned
+ * DATABASE_URL is pooled); the fallback keeps a lone DATABASE_URL working for
+ * setups that never provisioned a separate unpooled value.
  */
 function connectionPool() {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
   if (!connectionString) throw new Error('DATABASE_URL is not configured.');
   if (!pool) {
     pool = new pg.Pool({
