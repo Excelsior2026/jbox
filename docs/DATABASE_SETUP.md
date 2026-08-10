@@ -190,7 +190,7 @@ Against the **development** branch only — it provisions throwaway organization
 npm run db:verify
 ```
 
-Runs every suite in `packages/database/checks/` (isolation, documents, pricing) through the
+Runs every suite in `packages/database/checks/` (isolation, documents, pricing, field) through the
 bundled node-pg runner, so no `psql` binary is required. Each suite's final line reads
 `all checks passed`; a single failed assertion fails that suite. If it fails, stop — the message
 names the specific guarantee that broke.
