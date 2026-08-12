@@ -26,6 +26,13 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // The Field workspace lives on the platform host (field.usejbox.com); its
+  // pages and API share an origin and authenticate per request, so a platform
+  // host must serve /field as-is rather than rewriting it onto the shell.
+  if (request.nextUrl.pathname === '/field' || request.nextUrl.pathname.startsWith('/field/')) {
+    return NextResponse.next();
+  }
+
   const pathname = request.nextUrl.pathname;
   if (pathname === '/platform' || pathname.startsWith('/platform/')) {
     return NextResponse.next();
