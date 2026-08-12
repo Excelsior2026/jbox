@@ -140,6 +140,12 @@ export async function verifyCustomerAccessGrant(options: {
   documentId: string;
   resourceVersionId: string | null;
   purpose: CustomerAccessPurpose;
+  /**
+   * When true, a consumed grant still verifies (a decided link stays viewable
+   * so the customer can see the outcome), while revoked/expired/mismatched
+   * links still fail closed.
+   */
+  allowConsumed?: boolean;
 }): Promise<VerifyCustomerAccessGrantResult> {
   const { purpose } = splitPurpose(options.purpose);
   const sql = db();
@@ -153,7 +159,10 @@ export async function verifyCustomerAccessGrant(options: {
   )) as GrantRow[];
   const grant = rows[0];
   if (!grant) return { ok: false, reason: 'not-found' };
-  if (grant.status !== 'active') return { ok: false, reason: grant.status };
+  if (grant.status === 'revoked') return { ok: false, reason: 'revoked' };
+  if (grant.status === 'consumed' && !options.allowConsumed) {
+    return { ok: false, reason: 'consumed' };
+  }
   if (grant.document_type !== options.documentType || grant.document_id !== options.documentId || grant.purpose !== purpose) {
     return { ok: false, reason: 'mismatch' };
   }
