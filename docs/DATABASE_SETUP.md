@@ -198,6 +198,21 @@ names the specific guarantee that broke.
 The provisioned development branch passed these suites on 2026-08-10. The test transactions
 rolled back, leaving no throwaway organizations behind.
 
+## 5b. Seed a dev tenant for Field/storefront work
+
+The development branch starts with zero tenant data. To exercise the Field UI and the storefront
+end-to-end, seed one dev tenant (idempotent — safe to re-run):
+
+```bash
+npm run db:seed:dev
+```
+
+Creates the active organization `paris-dev` ("Paris Electric"), its verified canonical hostname
+`paris.usejbox.com`, the in-force `config-v1` document, two smoke customers, and one draft
+estimate, with record counters advanced so later app-created documents cannot collide. The seed
+also expects `DEVELOPMENT_FIELD_ORGANIZATION_ID` in `.env.local` (dev-only, never deployed) so the
+Field UI's development principal resolves to that organization when Clerk keys are absent.
+
 ## 6. Wire the environment variables
 
 Four values exist per environment. Three may be deployed; the owner value is operator-only. The
