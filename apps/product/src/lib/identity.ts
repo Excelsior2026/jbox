@@ -26,3 +26,18 @@ export function applicationRoleForClerkRole(
       return null;
   }
 }
+
+/**
+ * True when the session has a positive factor verification age for both the
+ * session and the organization membership, which Clerk only reports for
+ * MFA-verified sessions.
+ */
+export function sessionSatisfiesMfa(
+  factorVerificationAge: [number, number] | null,
+): boolean {
+  return Boolean(
+    factorVerificationAge
+    && factorVerificationAge[0] >= 0
+    && factorVerificationAge[1] >= 0,
+  );
+}
