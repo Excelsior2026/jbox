@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
+import type { Metadata } from 'next';
 import {
   publicSiteThemeClass,
   type BrandPalette,
@@ -7,6 +8,20 @@ import {
 import { loadStorefront } from '@/lib/tenant';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * The browser tab carries the tenant's name, not the platform's. The same
+ * fail-closed resolve the layout uses; when there is no resolvable tenant the
+ * placeholder keeps the platform title.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  try {
+    const { config } = await loadStorefront();
+    return { title: config.identity.businessName };
+  } catch {
+    return { title: 'J-Box' };
+  }
+}
 
 function brandVars(brand: BrandPalette): CSSProperties {
   return {

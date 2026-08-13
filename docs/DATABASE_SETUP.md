@@ -154,10 +154,13 @@ CREATE ROLE jbox_runtime LOGIN PASSWORD '<generated>'
 GRANT contractor_app, platform_runtime TO jbox_runtime;
 GRANT USAGE ON SCHEMA public TO jbox_runtime;
 
--- Control plane. Separate login; may assume only control_app.
+-- Control plane. Separate login. control_app for control-owned rows
+-- (organizations, domains, identity); contractor_app, switched to only under
+-- an org context, so provisioning writes tenant content (configuration, price
+-- book) through the same RLS-enforced path the tenant itself uses.
 CREATE ROLE jbox_control LOGIN PASSWORD '<generated>'
   NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
-GRANT control_app TO jbox_control;
+GRANT control_app, contractor_app TO jbox_control;
 GRANT USAGE ON SCHEMA public TO jbox_control;
 ```
 
@@ -165,6 +168,11 @@ GRANT USAGE ON SCHEMA public TO jbox_control;
 and must `SET LOCAL ROLE contractor_app` (tenant work) or `platform_runtime` (webhooks, cron,
 health) to do anything. Without it, the login would silently carry the union of both roles'
 privileges and the distinction the schema is built on would stop meaning anything.
+
+`jbox_control` works the same way. A provisioning transaction sets `control_app` for
+control-owned rows, then — after `set_application_context` — switches to `contractor_app` for
+tenant content. Every statement still runs under one RLS-enforced role; the login itself holds
+no privilege between transactions.
 
 Confirm the result:
 

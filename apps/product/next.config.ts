@@ -27,9 +27,11 @@ const contentSecurityPolicy = [
 const nextConfig: NextConfig = {
   // Emits a self-contained Node server with only the dependencies it actually
   // uses, so the container image does not carry the whole monorepo's
-  // node_modules. Required for running this as a long-lived process rather
-  // than as per-request functions.
-  output: 'standalone',
+  // node_modules. Required for running as a long-lived process (Fly) rather
+  // than as per-request functions. On Vercel the platform builds serverless
+  // functions itself, and a standalone trace conflicts with its build hook, so
+  // the output is standalone only when not on Vercel.
+  output: process.env.VERCEL ? undefined : 'standalone',
   // Workspace packages export TS source directly; Next must compile them.
   transpilePackages: [
     '@contractor-platform/configuration',
