@@ -153,14 +153,21 @@ export async function resolveClerkFieldPrincipal(): Promise<FieldPrincipal | nul
 }
 
 /**
- * Development fallback: when Clerk identity is not configured and we are not in
- * production, resolve the configured default organization so the Field UI can be
- * developed and tested against a database-backed tenant. There is no real
- * membership in this mode; the organization id comes from the deployment
- * environment rather than a request.
+ * Development/demo fallback: when Clerk identity is not configured and either we
+ * are not in production or demo mode is explicitly enabled, resolve the
+ * configured default organization so the Field UI can be developed and tested
+ * against a database-backed tenant. There is no real membership in this mode;
+ * the organization id comes from the deployment environment rather than a
+ * request. FIELD_DEMO_MODE is the deliberate opt-in that opens the workspace to
+ * the configured demo organization in production — never set it for a tenant
+ * that holds real data.
  */
 export async function resolveDevelopmentFieldPrincipal(): Promise<FieldPrincipal | null> {
-  if (process.env.NODE_ENV === 'production' || clerkIdentityState() !== 'disabled') {
+  const demoMode = process.env.FIELD_DEMO_MODE === '1';
+  if (
+    (process.env.NODE_ENV === 'production' && !demoMode)
+    || clerkIdentityState() !== 'disabled'
+  ) {
     return null;
   }
   const organizationId = process.env.DEVELOPMENT_FIELD_ORGANIZATION_ID?.trim() ?? '';

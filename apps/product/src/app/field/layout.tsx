@@ -19,7 +19,9 @@ export const metadata: Metadata = {
  * identity is configured, otherwise the development owner fallback — and the
  * pages under it do their own two-phase resolve-then-withFieldContext work.
  * With no principal there is nothing to render, so the shell fails closed to a
- * neutral access panel rather than a half-authenticated page.
+ * neutral access panel rather than a half-authenticated page. A development
+ * principal carries a demo banner so the open workspace cannot be mistaken for
+ * an authenticated production one.
  */
 export default async function FieldLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const principal = await getFieldPrincipal();
@@ -43,6 +45,12 @@ export default async function FieldLayout({ children }: Readonly<{ children: Rea
 
   return (
     <div className={styles.shell}>
+      {principal.kind === 'development' && (
+        <div className={styles.demoBanner} role="note">
+          Demo mode — you are exploring as an owner of the demo organization.
+          Anyone with this link can view and change this workspace.
+        </div>
+      )}
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <Link className={styles.brand} href="/field">J-Box Field</Link>
