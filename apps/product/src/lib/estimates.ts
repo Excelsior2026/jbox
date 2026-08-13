@@ -236,7 +236,7 @@ export async function createEstimate(
      logged AS (
        INSERT INTO estimate_events (organization_id, estimate_id, event, actor_id, meta)
        SELECT app_require_organization_id(), header.id, 'created', $20,
-              jsonb_build_object('request_ip', $21, 'user_agent', $22)
+              jsonb_build_object('request_ip', $21::text, 'user_agent', $22::text)
        FROM header
      )
      SELECT header.id FROM header`,
@@ -312,10 +312,6 @@ export async function updateEstimate(
        WHERE id = $1 AND status = 'draft' AND updated_at = $16::timestamptz
        RETURNING id
      ),
-     deleted AS (
-       DELETE FROM estimate_line_items
-       WHERE estimate_id = $1 AND EXISTS (SELECT 1 FROM updated)
-     ),
      inserted AS (
        INSERT INTO estimate_line_items
          (organization_id, estimate_id, position, item_code, description, item_version_id,
@@ -327,11 +323,27 @@ export async function updateEstimate(
             AS x(position int, item_code text, description text, item_version_id text,
                   quantity_hundredths bigint, unit_price_cents bigint, taxable boolean, line_total_cents bigint)
        WHERE EXISTS (SELECT 1 FROM updated)
+       ON CONFLICT (estimate_id, position) DO UPDATE SET
+         item_code = EXCLUDED.item_code,
+         description = EXCLUDED.description,
+         item_version_id = EXCLUDED.item_version_id,
+         quantity_hundredths = EXCLUDED.quantity_hundredths,
+         unit_price_cents = EXCLUDED.unit_price_cents,
+         taxable = EXCLUDED.taxable,
+         line_total_cents = EXCLUDED.line_total_cents
+     ),
+     pruned AS (
+       DELETE FROM estimate_line_items
+       WHERE estimate_id = $1
+         AND position NOT IN (
+           SELECT position FROM jsonb_to_recordset($17::jsonb) AS x(position int)
+         )
+         AND EXISTS (SELECT 1 FROM updated)
      ),
      logged AS (
        INSERT INTO estimate_events (organization_id, estimate_id, event, actor_id, meta)
        SELECT app_require_organization_id(), id, 'updated', $18,
-              jsonb_build_object('request_ip', $19, 'user_agent', $20)
+               jsonb_build_object('request_ip', $19::text, 'user_agent', $20::text)
        FROM updated
      )
      SELECT id FROM updated`,
@@ -416,7 +428,7 @@ export async function signEstimate(
      logged AS (
        INSERT INTO estimate_events (organization_id, estimate_id, event, actor_id, meta)
        SELECT app_require_organization_id(), id, 'signed', $10,
-              jsonb_build_object('content_hash', $3, 'request_ip', $11, 'user_agent', $12)
+               jsonb_build_object('content_hash', $3::text, 'request_ip', $11::text, 'user_agent', $12::text)
        FROM updated
      )
      SELECT id FROM updated`,
@@ -459,7 +471,7 @@ export async function declineEstimate(
      logged AS (
        INSERT INTO estimate_events (organization_id, estimate_id, event, actor_id, meta)
        SELECT app_require_organization_id(), id, 'declined', $2,
-              jsonb_build_object('request_ip', $3, 'user_agent', $4)
+               jsonb_build_object('request_ip', $3::text, 'user_agent', $4::text)
        FROM updated
      )
      SELECT id FROM updated`,
@@ -515,7 +527,7 @@ export async function duplicateEstimate(id: string, ctx: EstimateEventContext): 
      logged AS (
        INSERT INTO estimate_events (organization_id, estimate_id, event, actor_id, meta)
        SELECT app_require_organization_id(), header.id, 'duplicated', $20,
-              jsonb_build_object('source', $21, 'request_ip', $22, 'user_agent', $23)
+               jsonb_build_object('source', $21::text, 'request_ip', $22::text, 'user_agent', $23::text)
        FROM header
      )
      SELECT header.id FROM header`,
