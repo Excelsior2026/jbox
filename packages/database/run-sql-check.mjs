@@ -48,6 +48,10 @@ const client = new pg.Client({
 });
 
 await client.connect();
+
+client.on('notice', (notice) => {
+  process.stderr.write(`NOTICE: ${notice.message}\n`);
+});
 try {
   for (const [index, statement] of statements.entries()) {
     if (process.env.VERBOSE) process.stdout.write(`  [${index}] ${statement.slice(0, 60)}\n`);
