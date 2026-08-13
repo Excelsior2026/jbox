@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { SignOutButton } from '@clerk/nextjs';
 import { getFieldPrincipal } from '@/lib/field-api-auth';
-import { isClerkIdentityConfigured } from '@/lib/identity-environment';
+import { isFieldAuthConfigured } from '@/lib/identity-environment';
+import { ROLE_LABELS } from '@/lib/identity';
 import styles from './field.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -15,18 +15,37 @@ export const metadata: Metadata = {
 
 /**
  * Field shell. Runs on the platform host (field.usejbox.com): tenant-free by
- * construction. Every request resolves its own principal — Clerk session when
- * identity is configured, otherwise the development owner fallback — and the
- * pages under it do their own two-phase resolve-then-withFieldContext work.
- * With no principal there is nothing to render, so the shell fails closed to a
- * neutral access panel rather than a half-authenticated page. A development
- * principal carries a demo banner so the open workspace cannot be mistaken for
- * an authenticated production one.
+ * construction. Every request resolves its own principal — a first-party
+ * session JWT when the staff member has signed in, otherwise the development
+ * owner fallback in demo mode — and the pages under it do their own two-phase
+ * resolve-then-withFieldContext work.
+ *
+ * With no principal there is nothing to render, so the shell fails closed to
+ * the sign-in page when auth is configured, or a neutral access panel when no
+ * identity provider is configured at all. A development principal carries a
+ * demo banner so the open workspace cannot be mistaken for an authenticated
+ * production one.
  */
 export default async function FieldLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const principal = await getFieldPrincipal();
 
   if (!principal) {
+    if (isFieldAuthConfigured()) {
+      return (
+        <main className={styles.accessPage}>
+          <section className={styles.accessPanel}>
+            <p className={styles.eyebrow}>J-Box Field</p>
+            <h1>Sign in to the workspace.</h1>
+            <p>
+              The Field workspace resolves an authenticated staff member and
+              their active organization. Sign in to continue.
+            </p>
+            <Link className={styles.button} href="/field/login">Sign in</Link>
+          </section>
+        </main>
+      );
+    }
+
     return (
       <main className={styles.accessPage}>
         <section className={styles.accessPanel}>
@@ -60,7 +79,19 @@ export default async function FieldLayout({ children }: Readonly<{ children: Rea
             <Link className={styles.navLink} href="/field/estimates">Estimates</Link>
           </nav>
           <div className={styles.headerActions}>
-            {isClerkIdentityConfigured() && <SignOutButton redirectUrl="/" />}
+            {principal.kind === 'jwt' ? (
+              <>
+                <span className={styles.identity}>
+                  {principal.displayName ?? principal.email}
+                  <span className={styles.identityMeta}>
+                    {ROLE_LABELS[principal.role]}
+                  </span>
+                </span>
+                <form action="/api/auth/logout" method="post">
+                  <button className={styles.buttonGhost} type="submit">Sign out</button>
+                </form>
+              </>
+            ) : null}
           </div>
         </div>
       </header>

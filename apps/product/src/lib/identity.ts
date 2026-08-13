@@ -3,41 +3,21 @@ import 'server-only';
 import type { ApplicationRole } from '@contractor-platform/domain';
 
 /**
- * Maps a Clerk organization role onto a J-Box application role.
- *
- * Clerk's default org roles are org:owner and org:member. J-Box admits a
- * middle tier (office) between owner and technician, so the mapping is explicit
- * and rejects unknown roles: the webhook handler must never invent a role the
- * schema does not understand.
+ * Native Field identity helpers. The J-Box application role is stored directly
+ * on the organization membership ('owner' | 'office' | 'technician'); there is
+ * no third-party role to map. This module keeps the role vocabulary in one
+ * place so the schema CHECK, the token claims, and the capability model cannot
+ * drift apart.
  */
-export function applicationRoleForClerkRole(
-  role: string | null,
-): ApplicationRole | null {
-  switch (role) {
-    case 'org:owner':
-    case 'org:admin':
-      return 'owner';
-    case 'org:office':
-      return 'office';
-    case 'org:technician':
-    case 'org:member':
-      return 'technician';
-    default:
-      return null;
-  }
+
+export const APPLICATION_ROLES: readonly ApplicationRole[] = ['owner', 'office', 'technician'];
+
+export function isApplicationRole(value: unknown): value is ApplicationRole {
+  return typeof value === 'string' && (APPLICATION_ROLES as readonly string[]).includes(value);
 }
 
-/**
- * True when the session has a positive factor verification age for both the
- * session and the organization membership, which Clerk only reports for
- * MFA-verified sessions.
- */
-export function sessionSatisfiesMfa(
-  factorVerificationAge: [number, number] | null,
-): boolean {
-  return Boolean(
-    factorVerificationAge
-    && factorVerificationAge[0] >= 0
-    && factorVerificationAge[1] >= 0,
-  );
-}
+export const ROLE_LABELS: Record<ApplicationRole, string> = {
+  owner: 'Owner',
+  office: 'Office',
+  technician: 'Technician',
+};
