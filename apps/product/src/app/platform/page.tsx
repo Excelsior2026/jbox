@@ -1,34 +1,28 @@
+import type { Metadata } from 'next';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { hostnameOf } from '@/lib/host';
+import MarketingLanding from './marketing-landing';
+
+export const metadata: Metadata = {
+  title: 'J-Box — Storefront and Field for small trade contractors',
+  description:
+    'Professional customer storefronts and a Field workspace for estimates, jobs, and invoices. Every lead flows from your site straight into your work queue.',
+};
+
 /**
- * The platform shell: served on the apex domain, the Field sign-in host, and
- * any deployment hostname, which the proxy rewrites here. Public and tenant-free
- * by construction — this is the one page that must never render tenant data.
+ * The platform surface, served on the apex domain, app.usejbox.com, and any
+ * deployment hostname (the proxy rewrites those here). Public and tenant-free
+ * by construction.
+ *
+ * Host-branched: field.usejbox.com is the Field sign-in host and sends its
+ * root straight to the workspace; every other platform host gets the product
+ * landing page.
  */
-export default function PlatformPage() {
-  return (
-    <main className="container">
-      <header className="site-header">
-        <div className="container">
-          <span className="brand-name">J-Box</span>
-        </div>
-      </header>
-
-      <section className="hero">
-        <div className="container">
-          <h1>Storefront and Field for small trade contractors.</h1>
-          <p>
-            This is the J-Box platform shell. Each customer&apos;s public site
-            lives on its own subdomain, and the Field workspace is where staff
-            run estimates, jobs, and invoices.
-          </p>
-          <p>
-            Tenant sites are not set up yet — check back after onboarding.
-          </p>
-        </div>
-      </section>
-
-      <footer className="site-footer">
-        <div className="container">Powered by J-Box</div>
-      </footer>
-    </main>
-  );
+export default async function PlatformPage() {
+  const host = hostnameOf((await headers()).get('host'));
+  if (host === 'field.usejbox.com') {
+    redirect('/field');
+  }
+  return <MarketingLanding />;
 }

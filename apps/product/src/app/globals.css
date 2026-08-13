@@ -206,3 +206,72 @@ a { color: var(--brand-accent); }
   color: #15803d;
   font-weight: 700;
 }
+
+/* --- Marketing page ------------------------------------------------------- */
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--brand-accent);
+  margin-bottom: 10px;
+}
+
+.step-card { text-align: left; }
+
+.step-num {
+  font-family: var(--display-font);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--brand-accent);
+  line-height: 1;
+}
+
+.cta-band {
+  background:
+    radial-gradient(120% 100% at 20% 100%, color-mix(in srgb, var(--brand-accent) 14%, transparent), transparent 55%),
+    var(--brand-surface);
+}
+
+.cta-band h2 { font-family: var(--display-font); font-size: 2rem; margin: 0 0 8px; }
+.cta-band p { color: var(--muted); margin: 0 0 20px; }
+
+/* --- Onboarding wizard ---------------------------------------------------- */
+
+.muted-note { color: var(--muted); font-size: 0.9rem; }
+
+.draft-preview { display: grid; gap: 14px; max-width: 720px; }
+
+.subdomain-preview {
+  font-family: var(--display-font);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--brand-accent);
+}
+
+.draft-card { gap: 4px; }
+.draft-card .eyebrow { margin-bottom: 2px; }
+
+.draft-tagline {
+  font-family: var(--display-font);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.draft-headline { margin: 0; }
+
+.draft-services {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.draft-services li {
+  display: grid;
+  gap: 2px;
+}
+.draft-services span { color: var(--muted); }
+

@@ -34,6 +34,7 @@ const nextConfig: NextConfig = {
   output: process.env.VERCEL ? undefined : 'standalone',
   // Workspace packages export TS source directly; Next must compile them.
   transpilePackages: [
+    '@contractor-platform/ai',
     '@contractor-platform/configuration',
     '@contractor-platform/money',
   ],

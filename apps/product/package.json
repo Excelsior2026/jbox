@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^7.7.1",
+    "@contractor-platform/ai": "0.1.0",
     "@contractor-platform/configuration": "0.1.0",
     "@contractor-platform/domain": "0.1.0",
     "@contractor-platform/money": "0.1.0",
