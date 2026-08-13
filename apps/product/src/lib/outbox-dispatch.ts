@@ -9,6 +9,17 @@ import {
 const RESEND_API_URL = 'https://api.resend.com/emails';
 const MAX_DISPATCH_BATCH = 50;
 
+/**
+ * Single source of truth for "is the email provider actually usable?". The
+ * enqueue gate (estimate-delivery) and the dispatch path (sendEstimateDeliveryEmail)
+ * must agree on this, or deliveries would queue that the drain could never
+ * send.
+ */
+export function isResendConfigured(): boolean {
+  const apiKey = process.env.RESEND_API_KEY?.trim() ?? '';
+  return apiKey.startsWith('re_') && apiKey.length >= 12;
+}
+
 export type OutboxDispatchSummary = {
   claimed: number;
   delivered: number;
@@ -126,7 +137,7 @@ async function sendEstimateDeliveryEmail(
   fetchImplementation: typeof fetch,
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY?.trim() ?? '';
-  if (!apiKey.startsWith('re_') || apiKey.length < 12) {
+  if (!isResendConfigured()) {
     throw new OutboxDispatchError('delivery_not_configured', false);
   }
 

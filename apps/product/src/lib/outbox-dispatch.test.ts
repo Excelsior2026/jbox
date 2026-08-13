@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   buildEstimateDeliveryEmail,
   dispatchOutboxMessage,
+  isResendConfigured,
   OutboxDispatchError,
   type EstimateDeliveryPayload,
 } from '@/lib/outbox-dispatch';
@@ -74,6 +75,27 @@ describe('buildEstimateDeliveryEmail', () => {
     expect(email.html).not.toContain('<script>');
     expect(email.html).toContain('&lt;script&gt;');
     expect(email.html).toContain('EST &amp; 1');
+  });
+});
+
+describe('isResendConfigured', () => {
+  it('is false when the key is unset', () => {
+    expect(isResendConfigured()).toBe(false);
+  });
+
+  it('is false for a key without the re_ prefix', () => {
+    process.env.RESEND_API_KEY = 'sk_live_abcdefghijkl';
+    expect(isResendConfigured()).toBe(false);
+  });
+
+  it('is false for a too-short key', () => {
+    process.env.RESEND_API_KEY = 're_short';
+    expect(isResendConfigured()).toBe(false);
+  });
+
+  it('is true for a real-looking key', () => {
+    process.env.RESEND_API_KEY = 're_test_abcdefghijkl';
+    expect(isResendConfigured()).toBe(true);
   });
 });
 

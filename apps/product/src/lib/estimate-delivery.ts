@@ -14,7 +14,10 @@ import {
 import {
   requireOrganizationContext,
 } from '@/lib/organization-context-store';
-import type { EstimateDeliveryPayload } from '@/lib/outbox-dispatch';
+import {
+  isResendConfigured,
+  type EstimateDeliveryPayload,
+} from '@/lib/outbox-dispatch';
 import { loadInForceConfig } from '@/lib/tenant';
 import { enqueueOutboxMessage } from '@/lib/transactional-outbox';
 
@@ -74,7 +77,7 @@ export async function createEstimateDelivery(options: {
   if (!config || !isUsableEmail(config.contact.email)) {
     return { ok: false, reason: 'delivery-not-configured' };
   }
-  if (!process.env.RESEND_API_KEY) {
+  if (!isResendConfigured()) {
     return { ok: false, reason: 'delivery-not-configured' };
   }
   if (!customerAccessTokensConfigured()) {
