@@ -5,7 +5,8 @@ import {
   loginWithPassword,
 } from '@/lib/auth';
 import { privateJson } from '@/lib/http';
-import { getClientIp, rateLimit } from '@/lib/rate-limit';
+import { getClientIp } from '@/lib/rate-limit';
+import { rateLimitWithFallback } from '@/lib/redis-rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +26,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
  */
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
-  if (!rateLimit(`login:${ip}`, { capacity: 10, refillPerMinute: 10 })) {
+  if (!(await rateLimitWithFallback(`login:${ip}`, { capacity: 10, refillPerMinute: 10 }))) {
     return privateJson({ error: 'too-many-requests' }, 429);
   }
 

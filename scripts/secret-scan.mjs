@@ -48,6 +48,7 @@ const syntheticFixtures = [
   'test_service_request_alerts',
   'incomplete_configuration',
   'vercel_blob_rw_test',
+  'postgres://control:test@localhost/control',
 ];
 
 const paths = result.stdout.split('\0').filter(Boolean);

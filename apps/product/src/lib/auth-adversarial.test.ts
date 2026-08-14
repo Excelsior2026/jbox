@@ -18,6 +18,7 @@ import {
   revokeAllSessionsForStaff,
   signFieldToken,
 } from '@/lib/auth';
+import { clearFieldAuthConfigCache } from '@/lib/identity-environment';
 
 const SECRET = 'z'.repeat(48);
 const ORG_A = '11111111-1111-1111-1111-111111111111';
@@ -41,7 +42,10 @@ function rowForLookup(passwordHash: string): typeof validLookupRow {
 
 beforeEach(() => {
   process.env.FIELD_AUTH_SECRET = SECRET;
+  process.env.FIELD_AUTH_KEY_VERSION = 'v1';
+  process.env.FIELD_AUTH_PREVIOUS_KEYS_JSON = '';
   process.env.NODE_ENV = 'test';
+  clearFieldAuthConfigCache();
   mocks.platformQuery.mockReset();
 });
 
@@ -184,10 +188,14 @@ describe('resolveStaffFromToken — adversarial session validation', () => {
 
   it('fails closed on a tampered/foreign-secret token before any database call', async () => {
     process.env.FIELD_AUTH_SECRET = 'y'.repeat(48);
+    process.env.FIELD_AUTH_PREVIOUS_KEYS_JSON = '';
+    clearFieldAuthConfigCache();
     const token = await signFieldToken({
       sub: USER, email: 'owner@example.com', organization_id: ORG_A, role: 'owner', jti: 'jti-tampered',
     });
     process.env.FIELD_AUTH_SECRET = SECRET;
+    process.env.FIELD_AUTH_PREVIOUS_KEYS_JSON = '';
+    clearFieldAuthConfigCache();
     expect(await resolveStaffFromToken(token)).toBeNull();
     expect(mocks.platformQuery).not.toHaveBeenCalled();
   });

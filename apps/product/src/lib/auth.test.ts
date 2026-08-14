@@ -7,12 +7,16 @@ import {
   verifyFieldToken,
   verifyPassword,
 } from '@/lib/auth';
+import { clearFieldAuthConfigCache } from '@/lib/identity-environment';
 
 const SECRET = 'a'.repeat(48);
 
 beforeEach(() => {
   process.env.FIELD_AUTH_SECRET = SECRET;
+  process.env.FIELD_AUTH_KEY_VERSION = 'v1';
+  process.env.FIELD_AUTH_PREVIOUS_KEYS_JSON = '';
   process.env.NODE_ENV = 'test';
+  clearFieldAuthConfigCache();
 });
 
 describe('password hashing (scrypt)', () => {
@@ -67,6 +71,8 @@ describe('field session JWT', () => {
   it('rejects a token signed with a different secret', async () => {
     const token = await signFieldToken(claims);
     process.env.FIELD_AUTH_SECRET = 'b'.repeat(48);
+    process.env.FIELD_AUTH_PREVIOUS_KEYS_JSON = '';
+    clearFieldAuthConfigCache();
     expect(await verifyFieldToken(token)).toBeNull();
   });
 
@@ -87,6 +93,8 @@ describe('field session JWT', () => {
 
   it('fails closed when no secret is configured', async () => {
     delete process.env.FIELD_AUTH_SECRET;
+    process.env.FIELD_AUTH_PREVIOUS_KEYS_JSON = '';
+    clearFieldAuthConfigCache();
     await expect(signFieldToken(claims)).rejects.toThrow(/not_configured/);
     expect(await verifyFieldToken('anything')).toBeNull();
   });

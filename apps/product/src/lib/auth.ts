@@ -14,7 +14,7 @@ import { NextResponse } from 'next/server';
 import type { ApplicationRole } from '@contractor-platform/domain';
 import { capabilitiesForRole } from '@contractor-platform/domain';
 import { platformDb } from '@/lib/db';
-import { fieldAuthSecret, fieldAuthTokenMinutes } from '@/lib/identity-environment';
+import { fieldAuthSecret, fieldAuthSecrets, fieldAuthTokenMinutes } from '@/lib/identity-environment';
 
 const scrypt = promisify(scryptCallback) as (
   password: string,
@@ -153,35 +153,39 @@ export async function signFieldToken(claims: Omit<FieldTokenClaims, 'iat' | 'exp
 export async function verifyFieldToken(
   token: string,
 ): Promise<{ claims: FieldTokenClaims } | null> {
-  const secret = fieldAuthSecret();
-  if (!secret) return null;
-  try {
-    const { payload } = await jwtVerify(token, await tokenSigningKey(secret), {
-      issuer: FIELD_TOKEN_ISSUER,
-      audience: FIELD_TOKEN_AUDIENCE,
-    });
-    const { sub, email, organization_id: organizationId, role, jti } = payload;
-    if (
-      typeof sub !== 'string'
-      || typeof email !== 'string'
-      || typeof organizationId !== 'string'
-      || typeof role !== 'string'
-      || typeof jti !== 'string'
-      || typeof payload.iat !== 'number'
-      || typeof payload.exp !== 'number'
-    ) {
-      return null;
+  const secrets = fieldAuthSecrets();
+  if (secrets.length === 0) return null;
+
+  for (const secret of secrets) {
+    try {
+      const { payload } = await jwtVerify(token, await tokenSigningKey(secret), {
+        issuer: FIELD_TOKEN_ISSUER,
+        audience: FIELD_TOKEN_AUDIENCE,
+      });
+      const { sub, email, organization_id: organizationId, role, jti } = payload;
+      if (
+        typeof sub !== 'string'
+        || typeof email !== 'string'
+        || typeof organizationId !== 'string'
+        || typeof role !== 'string'
+        || typeof jti !== 'string'
+        || typeof payload.iat !== 'number'
+        || typeof payload.exp !== 'number'
+      ) {
+        continue;
+      }
+      if (role !== 'owner' && role !== 'office' && role !== 'technician') continue;
+      return {
+        claims: {
+          sub, email, organization_id: organizationId, role, jti,
+          iat: payload.iat, exp: payload.exp,
+        },
+      };
+    } catch {
+      continue;
     }
-    if (role !== 'owner' && role !== 'office' && role !== 'technician') return null;
-    return {
-      claims: {
-        sub, email, organization_id: organizationId, role, jti,
-        iat: payload.iat, exp: payload.exp,
-      },
-    };
-  } catch {
-    return null;
   }
+  return null;
 }
 
 // ---------------------------------------------------------------------------

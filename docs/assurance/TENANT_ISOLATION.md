@@ -1,90 +1,95 @@
-# TENANT_ISOLATION
+# Tenant isolation assurance
 
-Scope: adversarial tenant-isolation testing of the database layer on the J-Box monorepo.
-Produced: 2026-08-13 by the architecture-assurance pass. All assertions below were observed against a live
-development database, not assumed. Where a property could not be demonstrated inside the test harness it is
-marked **UNVERIFIED** with the reason.
+Assurance snapshot: 2026-08-14
 
-## 1. What is tested
+Scope: PostgreSQL row isolation, runtime roles, tenant binding, and privileged cross-tenant windows.
 
-`packages/database/checks/isolation-adversarial.sql` is an extension of the existing `isolation.sql` suite. It
-provisions two throwaway organizations (tenant-alpha, tenant-beta) with representative rows across every
-tenant-owned table, then attempts to break the isolation boundary. Every assertion raises on failure, so a clean
-exit is the pass condition. The suite runs inside a single transaction and **ROLLBACKs** at the end — nothing it
-provisions persists. Run it against a disposable branch, never production:
+## Verdict
 
-```
-node --env-file-if-exists=.env.local packages/database/run-sql-check.mjs isolation-adversarial.sql
-```
+**Direct table isolation is strong; the complete isolation boundary is not assured.**
 
-The runner executes against `DATABASE_URL_OWNER` (migration owner, which holds `contractor_app`, `control_app`,
-`platform_runtime`), matching the `isolation.sql` convention.
+The database uses the right core structure: non-owner runtime logins, `SET LOCAL ROLE`, transaction-local tenant context, forced RLS, tenant-scoped uniqueness, and composite foreign keys. The two-tenant adversarial suites held against foreign-ID reads/writes, null/malformed context, pooled-context switching, and unauthorized direct control/worker table access.
 
-## 2. Sections and what each proves
+However, every application-created function retained PostgreSQL's default `PUBLIC EXECUTE`. As a result, `contractor_app` can execute privileged `SECURITY DEFINER` auth, provisioning, hostname, and outbox functions. RLS is not bypassed through direct table policies, but the definer-function door around it is broader than intended.
 
-| # | Section | Guarantee tested | Result |
-|---|---|---|---|
-| 1 | Tenant sees only its own organization | 13 tenant-owned tables return zero rows for the foreign `organization_id`; a foreign row addressed by exact primary key is invisible | PASS |
-| 2 | Guessed foreign ids | UPDATE / DELETE of a foreign row filters to zero rows; INSERT pointing at a foreign customer fails (composite FK + RLS WITH CHECK); INSERT naming a foreign `organization_id` fails | PASS |
-| 3 | Missing / null / malformed context | Empty or NULL context fails closed (`app_require_organization_id` raises `insufficient_privilege`); a malformed (non-uuid) context raises `invalid_text_representation` and is refused | PASS |
-| 4 | Stale pooled-connection state | Context is transaction-scoped (`set_config(..., is_local := true)`); an unset GUC reads NULL, and context set inside a subtransaction is reverted when that subtransaction aborts | PASS |
-| 5 | Nested context switching | alpha then beta on the same connection: each sees only its own rows | PASS |
-| 6 | Cross-org service request claim | A service-request claim scoped to alpha cannot claim beta's row | PASS |
-| 7 | Outbox lease (defect recording) | Crashed `claimed` rows with an expired lease are **not** re-claimable, and still-pending rows remain claimable — documents the known lease defect | PASS (defect NOTICE emitted, see §4) |
-| 8 | Control-plane path | `control_app` cannot write tenant content (no policy; SELECT-only grant) | PASS |
-| 9 | Worker path | `platform_runtime` cannot read or write tenant content outside the SECURITY DEFINER windows | PASS |
-| 10 | Identity rows | `platform_users` / `organization_memberships` are RLS-guarded for `contractor_app` and writeable only via the control path | PASS |
-| 11 | Auth windows | `staff_login_lookup` (SECURITY DEFINER) resolves a user only in the tenant they belong to; cross-tenant lookup returns zero rows | PASS |
-| 12 | Owner path | The migration owner (BYPASSRLS) observes both tenants — the operator path is deliberately elevated and must never be deployed | PASS |
+## Intended boundary
 
-## 3. Observed behavior notes
+1. Host resolution uses one narrow platform function to map an active verified hostname to an organization.
+2. Field authentication binds the principal to an active organization membership.
+3. Tenant work runs as `contractor_app` inside a transaction with `app.organization_id` set locally.
+4. `platform_runtime` and `control_app` reach cross-tenant state only through explicitly granted, reviewed functions/tables.
+5. No deployed login is a table owner or has `BYPASSRLS`.
 
-- **Malformed context fails closed, but with a hard error, not a NULL.** A non-uuid `app.organization_id`
-  makes `app_current_organization_id()` raise `invalid_text_representation` (22P02) rather than resolve to NULL.
-  Requests fail loudly — no silent tenant boundary collapse — but the error type is not the `insufficient_privilege`
-  used for a missing context. This is a robustness note, not a defect: both paths refuse the write.
-- **Ownership insert paths are control-plane only.** `organization_memberships` grants `contractor_app` SELECT only;
-  the membership INSERT in this suite must run under `control_app` (as production provisioning does). Mirror the
-  control path when provisioning a tenant.
-- **The dev database carries ambient rows.** The suite scopes owner-path assertions to the two synthetic
-  organizations rather than asserting global counts, so pre-existing development data (e.g. the seeded
-  `PE-EST-0001` estimate) does not create false failures.
+The implementation satisfies items 3 and 5 in current production. Item 2 fails because production demo mode supplies an owner principal without authentication. Item 4 fails because function ACLs are public.
 
-## 4. Lease defect (recorded by the suite)
+## Adversarial SQL results
 
-The suite's section 7 drives a message to `status = 'claimed'` with `claimed_until` one hour in the past, then
-claims a batch. The run emits:
+`npm run db:verify` ran all six suites on the development branch. The isolation suite creates two throwaway tenants and rolls back. Results:
 
-```
-NOTICE: LEASE DEFECT CONFIRMED: 1 crashed claimed message(s) with an expired lease are not re-claimable
-        (claim predicate selects status IN ('pending','failed') only; claimed_until is never consulted).
-```
+| Property | Result | Scope/qualification |
+|---|---|---|
+| Foreign rows hidden from `contractor_app` | PASS | Representative tenant tables and exact foreign primary keys |
+| Foreign update/delete | PASS | Zero rows affected |
+| Foreign FK references | PASS | Composite FK/RLS check rejects |
+| Missing/null context | PASS | Writes fail closed |
+| Malformed UUID context | PASS | Hard PostgreSQL error; no fallback tenant |
+| Context switching on one connection | PASS | Alpha and beta each see only their rows |
+| Transaction-local context | PASS | Subtransaction reset proven; real pool COMMIT reuse remains an app-level assumption |
+| `control_app` direct tenant-content write | PASS (denied) | Provisioning must switch to `contractor_app` |
+| `platform_runtime` direct tenant-content read/write | PASS (denied) | Definer functions not covered by this assertion |
+| Runtime login attributes | PASS | Production `jbox_runtime` is non-owner, `NOBYPASSRLS`, `NOINHERIT` |
+| Owner path | EXPECTED ELEVATION | Owner sees both tenants and must never be deployed |
+| Outbox expired lease | **DEFECT CONFIRMED** | Suite emits notice but still exits successfully |
 
-`claim_ready_outbox_messages()` (`packages/database/migrations/005_field_identity_and_customer_access.sql:464-484`)
-sets `claimed_until = now() + interval '5 minutes'` but its WHERE clause never reads `claimed_until`. A worker that
-crashes after claiming leaves the row in `claimed` forever; the daily cron (`apps/product/src/lib/outbox-dispatch.ts`)
-only ever re-selects `pending`/`failed` rows. The suite asserts this is the current behavior (the crashed row is NOT
-rescued) and that the drain itself still works (the still-pending row IS claimed), so the assertion is a
-regression-catch on the defect, not a papering-over.
+## Privileged-function ACL defect
 
-## 5. Harness limitations (UNVERIFIED)
+Relevant functions:
 
-- **COMMIT-time clearing of the tenant GUC.** The suite runs in one transaction, so it cannot demonstrate that a
-  local context disappears at a real `COMMIT`/`ROLLBACK`. It proves the two mechanisms that provide this
-  (transaction-local `set_config(..., true)` in `set_application_context()`, and reversion on subtransaction abort)
-  and otherwise relies on documented PostgreSQL semantics. Direct COMMIT-boundary proof requires a separate
-  connection and is **UNVERIFIED** in this harness.
-- **Pooled-connection reuse across real requests.** Proving that a pooled connection that served alpha never serves
-  beta without a fresh `set_application_context()` would require multi-connection coordination; the suite proves the
-  database-level failure modes instead. Application-level pool hygiene is covered by the auth session tests
-  (`apps/product/src/lib/auth-adversarial.test.ts`).
+- hostname: `001_foundation.sql:196-215`;
+- Clerk/native identity and membership: `005_field_identity_and_customer_access.sql:254-439`, `007_native_field_auth.sql:93-270`;
+- outbox: `005_field_identity_and_customer_access.sql:446-515`.
 
-## 6. Conclusions
+The migrations grant named roles at `001...sql:378-391`, `005...sql:641-651`, and `007...sql:313-319`, but they never execute `REVOKE ... FROM PUBLIC`. PostgreSQL functions are executable by `PUBLIC` by default.
 
-- The RLS boundary (organization-id context + composite-tenant FKs + per-role policies) held against every
-  adversarial write/read/update/delete in the suite. No tenant-boundary bypass was found.
-- The outbox lease defect is confirmed behavior and is tracked as HIGH in the remediation plan
-  (see `REMEDIATION_PLAN.md`); it is an operational-recovery gap, not an isolation gap.
-- The isolation guarantee is tied to the operator never deploying `jbox_owner`: the owner path is deliberately
-  exempt from RLS (section 12). This is an architecture property, not an assurance of it — treat owner credentials
-  as untrusted-in-deploy (see `CURRENT_STATE.md` §2).
+Read-only `has_function_privilege` checks on both development and production returned true for `contractor_app` on:
+
+- `resolve_verified_organization(text)`;
+- `staff_login_lookup(text, uuid)`;
+- `staff_session_membership(uuid, uuid)`;
+- `staff_memberships_for_email(text)`;
+- `provision_staff_member(text, text, text, uuid, text)`;
+- `claim_ready_outbox_messages(integer)`;
+- `finish_outbox_message(uuid, boolean, text)`.
+
+This means any SQL foothold in a tenant-role transaction can invoke cross-tenant windows. The inspected application queries are parameterized, and no direct injection was found, so the defect is a privilege-escalation boundary rather than a proven public exploit.
+
+## Application-to-tenant binding defect
+
+`field-api-auth.ts:79-101` binds missing/invalid authentication to the environment-selected organization with owner capabilities when demo mode is enabled. This is live in Production. RLS then correctly isolates the request to that organization, but the identity-to-tenant binding is unauthenticated. Database isolation cannot compensate for a principal factory that deliberately chooses a real tenant for an anonymous caller.
+
+## Environmental assumptions
+
+The isolation claim remains conditional on all of the following:
+
+- Vercel forwards a trustworthy original Host and domains are mapped correctly.
+- The product uses `jbox_runtime`, not an owner credential.
+- Every tenant query goes through `db()` and starts a fresh transaction/role/context.
+- No connection/session state survives because `SET LOCAL ROLE` and `set_config(..., true)` remain transaction-local.
+- Definer functions have least-privilege ACLs.
+- Preview/development never point operational tools at production.
+- Production demo mode is impossible.
+
+The current system violates the last three assumptions in at least one environment.
+
+## Required remediation and proof
+
+1. Forward migration: revoke all application functions from `PUBLIC`; explicitly grant exact roles.
+2. Set secure default privileges so future functions do not reopen the boundary.
+3. Add ACL assertions for every function and role, including negative tests under the actual login after `SET LOCAL ROLE`.
+4. Remove production demo mode and add a code-level production invariant.
+5. Correct `jbox_control` provisioning to include `contractor_app`; test a fresh branch end to end.
+6. Correct local control's production connection and add immutable environment identity guards.
+7. Add a multi-connection test proving tenant context is absent after real COMMIT/ROLLBACK and pool reuse.
+8. Keep owner credentials out of all deployed environments and add a deployment check that queries `current_user`, ownership, `rolbypassrls`, and memberships.
+
+Tenant isolation can be marked assured only when the table-policy tests and privileged-function ACL tests both pass against the exact role/deployment contract.
