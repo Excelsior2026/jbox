@@ -23,6 +23,9 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
  * When an email has several organizations and none was named, the route returns
  * 400 with the choices rather than guessing. All failures collapse to a single
  * 401 message so the endpoint cannot be used to enumerate accounts (SEC-09).
+ *
+ * If MFA is required, returns 401 with { error: 'mfa-required', mfa: {...} }.
+ * Client should then POST to this same endpoint with totpToken.
  */
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
@@ -30,7 +33,7 @@ export async function POST(request: NextRequest) {
     return privateJson({ error: 'too-many-requests' }, 429);
   }
 
-  let body: { email?: unknown; password?: unknown; organizationId?: unknown };
+  let body: { email?: unknown; password?: unknown; organizationId?: unknown; totpToken?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -73,8 +76,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result = await loginWithPassword({ email, password: body.password, organizationId });
+  const totpToken = typeof body.totpToken === 'string' ? body.totpToken.trim() : undefined;
+
+  const result = await loginWithPassword({ email, password: body.password, organizationId, totpToken });
   if (!result.ok) {
+    if (result.reason === 'mfa-required') {
+      return privateJson({ error: 'mfa-required', mfa: result.mfa }, 401);
+    }
     return privateJson({ error: result.reason }, 401);
   }
 

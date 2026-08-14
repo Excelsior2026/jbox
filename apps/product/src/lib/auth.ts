@@ -15,6 +15,7 @@ import type { ApplicationRole } from '@contractor-platform/domain';
 import { capabilitiesForRole } from '@contractor-platform/domain';
 import { platformDb } from '@/lib/db';
 import { fieldAuthSecret, fieldAuthSecrets, fieldAuthTokenMinutes } from '@/lib/identity-environment';
+import { verifyTotpToken, generateTotpSecret, getTotpUri, type LoginResult, type AuthenticatedStaff } from '@/lib/mfa';
 
 const scrypt = promisify(scryptCallback) as (
   password: string,
@@ -192,18 +193,9 @@ export async function verifyFieldToken(
 // Session ledger
 // ---------------------------------------------------------------------------
 
-export type AuthenticatedStaff = {
-  platformUserId: string;
-  email: string;
-  displayName: string;
-  organizationId: string;
-  membershipId: string;
-  role: ApplicationRole;
-};
-
-export type LoginResult =
-  | { ok: true; value: { token: string; expiresAt: string; staff: AuthenticatedStaff } }
-  | { ok: false; reason: 'invalid-credentials' | 'inactive' | 'not-configured' };
+// Types are imported from '@/lib/mfa' to avoid circular dependency
+// export type AuthenticatedStaff = { ... }
+// export type LoginResult = { ... }
 
 /**
  * Authenticates email + password against an organization and issues a session.
@@ -215,6 +207,7 @@ export async function loginWithPassword(options: {
   email: string;
   password: string;
   organizationId: string;
+  totpToken?: string;
 }): Promise<LoginResult> {
   const email = options.email.trim().toLowerCase();
   if (!email || !options.password || !options.organizationId) {
@@ -224,7 +217,7 @@ export async function loginWithPassword(options: {
   const rows = (await platformDb().query(
     `SELECT
        platform_user_id, email, display_name, password_hash,
-       membership_id, role, mfa_required
+       membership_id, role, mfa_required, totp_secret
      FROM staff_login_lookup($1::text, $2::uuid)`,
     [email, options.organizationId],
   )) as Array<{
@@ -235,6 +228,7 @@ export async function loginWithPassword(options: {
     membership_id: string;
     role: ApplicationRole;
     mfa_required: boolean;
+    totp_secret: string | null;
   }>;
   const credential = rows[0];
   if (!credential || !credential.password_hash) {
@@ -242,6 +236,27 @@ export async function loginWithPassword(options: {
   }
   if (!(await verifyPassword(options.password, credential.password_hash))) {
     return { ok: false, reason: 'invalid-credentials' };
+  }
+
+  // MFA required - verify TOTP token if provided, otherwise return mfa-required challenge
+  if (credential.mfa_required) {
+    if (!options.totpToken) {
+      return {
+        ok: false,
+        reason: 'mfa-required',
+        mfa: {
+          userId: credential.platform_user_id,
+          email: credential.email,
+          organizationId: options.organizationId,
+          membershipId: credential.membership_id,
+          role: credential.role,
+          displayName: credential.display_name,
+        },
+      };
+    }
+    if (!credential.totp_secret || !verifyTotpToken(options.totpToken, credential.totp_secret)) {
+      return { ok: false, reason: 'invalid-credentials' };
+    }
   }
 
   const jti = createHash('sha256').update(`${credential.platform_user_id}:${randomBytes(16).toString('hex')}`).digest('hex').slice(0, 40);
@@ -275,6 +290,7 @@ export async function loginWithPassword(options: {
         organizationId: options.organizationId,
         membershipId: credential.membership_id,
         role: credential.role,
+        mfaRequired: credential.mfa_required,
       },
     },
   };
@@ -319,6 +335,7 @@ export async function resolveStaffFromToken(
     organizationId: claims.organization_id,
     membershipId: membership.membership_id,
     role: membership.role,
+    mfaRequired: membership.mfa_required,
   };
 }
 
@@ -379,6 +396,107 @@ export async function listActiveMembershipsForEmail(
     displayName: row.display_name,
     email: row.email,
   }));
+}
+
+// ---------------------------------------------------------------------------
+// MFA Enrollment
+// ---------------------------------------------------------------------------
+
+export type MfaSetupResult =
+  | { ok: true; value: { secret: string; uri: string } }
+  | { ok: false; reason: 'unauthenticated' | 'already-enrolled' | 'not-configured' };
+
+/**
+ * Initiates MFA enrollment for the current user. Returns a new TOTP secret
+ * and otpauth:// URI for QR code generation. The secret is stored temporarily
+ * and only activated after successful verification via completeMfaEnrollment().
+ */
+export async function initiateMfaEnrollment(
+  platformUserId: string,
+  email: string,
+): Promise<MfaSetupResult> {
+  const secret = generateTotpSecret();
+  const uri = getTotpUri(email, secret);
+
+  // Store the pending secret (not yet active)
+  await platformDb().query(
+    `UPDATE platform_users SET totp_secret = $1 WHERE id = $2`,
+    [secret, platformUserId],
+  );
+
+  return { ok: true, value: { secret, uri } };
+}
+
+/**
+ * Completes MFA enrollment by verifying the first TOTP code.
+ * If verification succeeds, marks mfa_required = true on the membership.
+ */
+export async function completeMfaEnrollment(
+  platformUserId: string,
+  organizationId: string,
+  totpToken: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  // Verify the TOTP token against the pending secret
+  const userRows = (await platformDb().query(
+    `SELECT totp_secret FROM platform_users WHERE id = $1`,
+    [platformUserId],
+  )) as Array<{ totp_secret: string | null }>;
+  const user = userRows[0];
+  if (!user?.totp_secret || !verifyTotpToken(totpToken, user.totp_secret)) {
+    return { ok: false, reason: 'invalid-token' };
+  }
+
+  // Activate MFA on the membership
+  const membershipRows = (await platformDb().query(
+    `UPDATE organization_memberships
+     SET mfa_required = true, updated_at = now()
+     WHERE platform_user_id = $1 AND organization_id = $2
+     RETURNING id`,
+    [platformUserId, organizationId],
+  )) as Array<{ id: string }>;
+  if (!membershipRows[0]) {
+    return { ok: false, reason: 'membership-not-found' };
+  }
+
+  // Revoke all existing sessions to force re-login with MFA
+  await revokeAllSessionsForStaff(platformUserId);
+
+  return { ok: true };
+}
+
+/**
+ * Disables MFA for a user (requires TOTP verification).
+ */
+export async function disableMfa(
+  platformUserId: string,
+  organizationId: string,
+  totpToken: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  const userRows = (await platformDb().query(
+    `SELECT totp_secret FROM platform_users WHERE id = $1`,
+    [platformUserId],
+  )) as Array<{ totp_secret: string | null }>;
+  const user = userRows[0];
+  if (!user?.totp_secret || !verifyTotpToken(totpToken, user.totp_secret)) {
+    return { ok: false, reason: 'invalid-token' };
+  }
+
+  // Clear the secret and disable MFA on membership
+  await platformDb().query(
+    `UPDATE platform_users SET totp_secret = NULL WHERE id = $1`,
+    [platformUserId],
+  );
+  await platformDb().query(
+    `UPDATE organization_memberships
+     SET mfa_required = false, updated_at = now()
+     WHERE platform_user_id = $1 AND organization_id = $2`,
+    [platformUserId, organizationId],
+  );
+
+  // Revoke all sessions
+  await revokeAllSessionsForStaff(platformUserId);
+
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------
