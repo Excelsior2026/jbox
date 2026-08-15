@@ -26,6 +26,9 @@ ALTER TABLE platform_users
 -- ---------------------------------------------------------------------------
 
 -- Update staff_login_lookup to return totp_secret for MFA challenge
+-- CREATE OR REPLACE cannot change a function's return type, and 007 already
+-- created the 7-column shape, so drop the old shape before recreating it.
+DROP FUNCTION IF EXISTS staff_login_lookup(text, uuid);
 CREATE OR REPLACE FUNCTION staff_login_lookup(p_email text, p_organization_id uuid)
 RETURNS TABLE (
   platform_user_id uuid,
@@ -71,6 +74,7 @@ $$;
 -- migrate:split
 
 -- Update staff_memberships_for_email to include totp_secret
+DROP FUNCTION IF EXISTS staff_memberships_for_email(text);
 CREATE OR REPLACE FUNCTION staff_memberships_for_email(p_email text)
 RETURNS TABLE (
   organization_id uuid,

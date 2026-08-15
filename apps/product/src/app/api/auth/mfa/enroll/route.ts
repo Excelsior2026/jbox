@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import { FIELD_SESSION_COOKIE, readFieldSessionToken, resolveStaffFromToken, completeMfaEnrollment } from '@/lib/auth';
+import { FIELD_SESSION_COOKIE, resolveStaffFromToken, completeMfaEnrollment } from '@/lib/auth';
 import { privateJson } from '@/lib/http';
 
 export const dynamic = 'force-dynamic';

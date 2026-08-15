@@ -1,6 +1,8 @@
 import 'server-only';
 
-import { authenticator } from 'otplib';
+import { generateSecret, generateURI, verifySync } from 'otplib';
+
+import type { ApplicationRole } from '@contractor-platform/domain';
 
 /**
  * TOTP-based MFA for Field authentication.
@@ -14,14 +16,14 @@ export const TOTP_WINDOW = 1; // Allow ±1 window (30s each side)
  * Generates a new TOTP secret (base32 encoded, 32 chars = 160 bits).
  */
 export function generateTotpSecret(): string {
-  return authenticator.generateSecret();
+  return generateSecret();
 }
 
 /**
  * Returns the otpauth:// URI for QR code generation.
  */
 export function getTotpUri(email: string, secret: string): string {
-  return authenticator.keyuri(email, TOTP_ISSUER, secret);
+  return generateURI({ issuer: TOTP_ISSUER, label: email, secret });
 }
 
 /**
@@ -30,8 +32,7 @@ export function getTotpUri(email: string, secret: string): string {
  */
 export function verifyTotpToken(token: string, secret: string): boolean {
   if (!token || !secret) return false;
-  // otplib verify accepts window as third param
-  return authenticator.verify({ token, secret, window: TOTP_WINDOW });
+  return verifySync({ token, secret, epochTolerance: TOTP_WINDOW * 30 }).valid;
 }
 
 /**
@@ -45,7 +46,7 @@ export type MfaRequiredResult = {
     email: string;
     organizationId: string;
     membershipId: string;
-    role: string;
+    role: ApplicationRole;
     displayName: string;
     // totpSecret is NOT returned here - client gets QR code via separate endpoint
   };
@@ -53,7 +54,7 @@ export type MfaRequiredResult = {
 
 export type LoginResult =
   | { ok: true; value: { token: string; expiresAt: string; staff: AuthenticatedStaff } }
-  | { ok: false; reason: 'invalid-credentials' | 'inactive' | 'not-configured' | 'mfa-required' }
+  | { ok: false; reason: 'invalid-credentials' | 'inactive' | 'not-configured' }
   | MfaRequiredResult;
 
 export type AuthenticatedStaff = {
@@ -62,6 +63,6 @@ export type AuthenticatedStaff = {
   displayName: string;
   organizationId: string;
   membershipId: string;
-  role: string;
+  role: ApplicationRole;
   mfaRequired: boolean;
 };
