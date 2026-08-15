@@ -25,6 +25,7 @@ import type { EstimateRecord } from '@/lib/estimate-record';
 import type { CustomerRecord } from '@/lib/customers';
 import type { JobRecord } from '@/lib/job-record';
 import EstimateJobAssociation from './estimate-job-association';
+import EstimateInvoiceAssociation from './estimate-invoice-association';
 import { money } from '../format';
 import styles from '../field.module.css';
 
@@ -1358,6 +1359,15 @@ export default function FieldEstimator({
           defaultTitle={customer.project}
           prepareAssociation={prepareJobAssociation}
           onAssociated={applyJobAssociation}
+        />
+      )}
+
+      {activeEstimateId && initial && (
+        <EstimateInvoiceAssociation
+          estimateId={activeEstimateId}
+          estimateStatus={recordStatus}
+          jobId={jobId}
+          expectedUpdatedAt={expectedUpdatedAt}
         />
       )}
 

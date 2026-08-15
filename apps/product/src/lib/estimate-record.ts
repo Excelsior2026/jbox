@@ -48,6 +48,7 @@ export type EstimateRecord = {
   customerId: string;
   serviceRequestId: string | null;
   jobId: string | null;
+  invoiceId: string | null;
   status: EstimateStatus;
   title: string;
   notes: string;

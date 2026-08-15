@@ -3248,4 +3248,165 @@
   font-weight: 900;
 }
 
+/* Internal invoice (migration 012): frozen copy of a signed estimate. */
+.estimateInvoiceAssociation {
+  min-height: 70px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  background: #f4f6f3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.estimateInvoiceAssociation > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.estimateInvoiceAssociation span {
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.estimateInvoiceAssociation strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.estimateInvoiceAssociation p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.estimateInvoiceAssociation small {
+  color: #8d302b;
+  font-size: 9px;
+}
+
+.estimateInvoiceAssociation > a,
+.estimateInvoiceAssociation > button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: 8px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.estimateInvoiceAssociation > button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.invoiceDetailCard {
+  margin-top: 20px;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+
+.invoiceDetailGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px 24px;
+}
+
+.invoiceDetailGrid > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.invoiceDetailGrid span {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  font-size: 7px;
+  font-weight: 900;
+}
+
+.invoiceDetailGrid strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.invoiceDetailGrid a {
+  color: var(--accent);
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.invoiceCardTitle {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.invoiceLines {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+}
+
+.invoiceLine {
+  min-height: 56px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 46px 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.invoiceLine:last-child {
+  border-bottom: 0;
+}
+
+.invoiceLineQty {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.invoiceLineDescription {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.invoiceLineDescription > strong {
+  font-size: 11px;
+}
+
+.invoiceLineDescription > small {
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.invoiceLinePrice {
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.invoiceEmptyState {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
 

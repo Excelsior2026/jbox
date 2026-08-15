@@ -53,12 +53,10 @@ derives `job_id` via subquery.
 
 ## Job association adaptation (migration 011 + new libs/routes)
 
-Ported scope: **job association only.** The invoice-conversion half of the
-prototype (`estimate-invoice-association.tsx`, `invoices.ts` lib, `/api/field/invoices`
-GET/POST) is **deferred** by scoping decision — jbox has no invoice-creation-from-
-estimate flow yet and it is a subsystem of its own. The estimate's `jobId`/
-`invoice` surfaces are unaffected; the invoice strip will slot in behind
-`jobs.estimate_id` → `invoices.job_id` later.
+Ported scope: **job + invoice association, both DONE.** The invoice-conversion
+half of the prototype (`estimate-invoice-association.tsx`, `invoices.ts` lib,
+`/api/field/invoices` GET/POST) is a jbox-native subsystem of its own
+(see the "Internal invoice from a signed estimate" section below).
 
 `packages/database/migrations/011_job_estimate_association.sql` (new file):
 - `job_events.event` CHECK gains `'estimate_linked'`.
@@ -192,8 +190,10 @@ contracts:
 - Job/invoice association: **job association DONE** (see the adaptation section
   above — migration 011, `estimate-jobs.ts`, `/api/field/jobs`,
   `/api/field/estimates/[id]/job`, `estimate-job-association.tsx`, wired into the
-  estimator). Invoice conversion (`estimate-invoice-association.tsx` port) is
-  **DEFERRED** — needs a whole invoice-creation-from-estimate subsystem in jbox.
+  estimator). **Invoice conversion DONE** — see the "Internal invoice from a
+  signed estimate" section below (migration 012, `invoices.ts`,
+  `/api/field/invoices`, `estimate-invoice-association.tsx`, minimal
+  `/field/invoices/[id]` detail page).
 - **Status: DONE for the estimator itself.** Component written (~1732 lines),
   typechecks clean, wired into the new + edit pages.
 
@@ -238,6 +238,60 @@ Files:
 4. Migrations 009 + 010 + 011 applied to the dev branch; `db:status` reports
    `up to date`; `field.sql` checks pass.
 5. Manual exercise of the new estimate + job-link flows still worth a pass.
+
+## Phase 6 — Internal invoice from a signed estimate
+
+**DONE 2026-08-15** (`verify:ci` exit 0; smoke-tested against the dev server).
+The prototype freezes the signed estimate into an internal snapshot
+(`invoices.estimate_id` + jsonb). jbox keeps the same one-invoice-per-estimate
+rule with native rows; the invoice is a faithful copy of the signed estimate's
+header, lines, and persisted totals.
+
+`packages/database/migrations/012_invoice_creation_from_estimate.sql` (new file):
+- `invoices.estimate_id uuid` + FK `(estimate_id, organization_id) →
+  estimates (id, organization_id) ON DELETE RESTRICT` (estimates has
+  `UNIQUE (id, organization_id)`).
+- Partial unique index `invoices_estimate_id_uniq ON invoices (organization_id,
+  estimate_id) WHERE estimate_id IS NOT NULL` — at most one invoice per estimate.
+- `estimate_events.event` CHECK gains `'invoice_created'`.
+
+New server files (jbox-native, mirroring `estimate-jobs.ts`):
+- `apps/product/src/lib/invoice-contract.ts` — `InvoiceStatus`
+  (`draft|issued|paid|cancelled`, jbox's own enum), `INVOICE_LIMITS`
+  (title 2–200, notes ≤4000 matching migration-004 CHECKs).
+- `apps/product/src/lib/invoice-record.ts` — `InvoiceRecord` (estimateId,
+  displayId, jobId, customerId, status, totals, moneyVersion, contentHash, …)
+  and `InvoiceSummary`.
+- `apps/product/src/lib/invoices.ts` — `getInvoice`, `listInvoices({ estimateId,
+  customerId, jobId })`, `getInvoiceByEstimate`, `getInvoiceLines`,
+  `createInvoiceFromEstimate(estimateId, expectedUpdatedAt, ctx)`. The guarded
+  CTE re-checks every classification in one statement (estimate signed +
+  `updated_at = expectedUpdatedAt`, job exists + not cancelled, no existing
+  invoice); copies header + lines (only the columns `invoice_line_items`
+  actually has — no area_id/price_origin/catalog_item_id/release_id) + persisted
+  totals + `money_version`; logs `invoice_events 'created'` and
+  `estimate_events 'invoice_created'` with `request_ip`/`user_agent` in `meta`.
+  `23505`/raced-no-op is re-read and reclassified so retries are idempotent
+  (`reused:true`). The estimate row is never touched → a loaded editor's
+  `expectedUpdatedAt` stays valid (same rule migration 011 established).
+- `apps/product/src/app/api/field/invoices/route.ts` — `GET` (`invoices.read`)
+  with uuid-validated `estimateId`/`customerId`/`jobId` filters; `POST`
+  (`invoices.open`, same-origin, `{ estimateId, expectedUpdatedAt }`) → 201
+  `{ invoice, reused:false }` / 200 `{ reused:true }` / 404 / 409 with
+  classified `reason` + `retryable` (conflict only).
+- `apps/product/src/app/field/estimates/estimate-invoice-association.tsx` —
+  client port of the strip (eligible only when signed + job linked; reuses
+  the estimator's `expectedUpdatedAt`).
+- `apps/product/src/app/field/invoices/[id]/page.tsx` — minimal read-only detail
+  page (header, totals grid, line items, back/estimate links) + CSS.
+- `estimates.ts` `HEADER_SELECT` derives `invoice_id` (subquery on
+  `invoices.estimate_id`, symmetric with `job_id`); `EstimateRecord.invoiceId`
+  added. `listEstimates` deliberately does not derive it (cards don't show it).
+
+Smoke test (dev server, seeded tenant): draft → 409 `estimate-not-signed`;
+sign via `/api/field/estimates/[id]/sign`; POST → 201 `INV-0001` with copied
+totals/lines; repeat POST → 200 `reused:true`; estimate GET shows `invoiceId`
+and unchanged `updatedAt`; detail page 200; DB shows both event histories.
 
 ## Sequencing / handoff notes
 

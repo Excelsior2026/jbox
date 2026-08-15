@@ -92,6 +92,9 @@ const HEADER_SELECT = `
   (SELECT job.id FROM jobs job
     WHERE job.estimate_id = e.id AND job.organization_id = e.organization_id
     ORDER BY job.created_at, job.id LIMIT 1) AS job_id,
+  (SELECT invoice.id FROM invoices invoice
+    WHERE invoice.estimate_id = e.id AND invoice.organization_id = e.organization_id
+    ORDER BY invoice.created_at, invoice.id LIMIT 1) AS invoice_id,
   c.display_name AS customer_display_name,
   c.phone AS customer_phone_live,
   c.email AS customer_email_live,
@@ -108,6 +111,7 @@ function mapEstimate(header: HeaderRow, lines: LineRow[]): EstimateRecord {
     customerId: header.customer_id as string,
     serviceRequestId: (header.service_request_id as string) ?? null,
     jobId: (header.job_id as string) ?? null,
+    invoiceId: (header.invoice_id as string) ?? null,
     status: header.status as EstimateStatus,
     title: header.title as string,
     notes: (header.notes as string) ?? '',
