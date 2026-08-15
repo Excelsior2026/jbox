@@ -28,7 +28,10 @@ Provisioned on 2026-08-08 in the direct **BagelTech** Neon organization:
 | Production branch | `br-quiet-band-avc4s183` (default) |
 | Preview branch | `br-floral-poetry-avcpaajg` |
 | Development branch | `br-square-wind-av4qdhvq` |
-| Applied schema | `001` + `002` on **all three** branches, tracked in `_migrations` |
+| Applied schema | `001`–`012` on **all three** branches, tracked in `_migrations` |
+
+Production was migrated from `008` to `012` (inclusive) on 2026-08-15 and now runs `field.sql`
+green; development has been at `012` since migration `012` landed.
 
 All three branches have distinct owner, runtime, and control credentials. Production and
 preview credentials are retained only in gitignored `0600` operator files;
@@ -69,8 +72,8 @@ organization before customer data enters production, then protect `production`. 
 an unprotected production branch as launch-ready.
 
 No J-Box Product or Control deployment existed when this database was provisioned, and
-both apps were still package scaffolds without build scripts. Their runtime variables therefore
-remain intentionally unwired rather than being attached to an empty or unrelated deployment.
+both apps were still package scaffolds without build scripts. Both are now deployed and wired
+— see "Wire the environment variables" below.
 
 ## 1. Create the project
 
@@ -245,13 +248,31 @@ helper writes it and nothing assumes its absence.
 # and may be safely recovered/merged without printing values:
 node scripts/provision-neon-branch.mjs \
   restless-meadow-35560667 development development recover-existing
-
-# Fly.io, per app. The product app runs Storefront and Field; the control app
-# is the operator plane. Never set DATABASE_URL_OWNER here.
-fly secrets set --app jbox-product \
-  DATABASE_URL='<prod pooled>' DATABASE_URL_UNPOOLED='<prod direct>'
-fly secrets set --app jbox-control CONTROL_DATABASE_URL='<prod pooled>'
 ```
+
+### Vercel, not Fly
+
+Both apps deploy to Vercel under the `bagel-tech` team; the Fly configs and the Fly commands
+below are stale and superseded.
+
+| App | Vercel project | Custom domain | Env (production) |
+|---|---|---|---|
+| Product (Storefront + Field) | `jbox-product` | `usejbox.com` (+ `app`/`demo`/`field`/`paris` subdomains) | `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `CONTROL_BASE_URL`, `CRON_SECRET`, `CUSTOMER_LINK_SECRET`, `FIELD_AUTH_SECRET`, `FIELD_PROVISION_SECRET`, `FIELD_AUTH_KEY_VERSION`, `NVIDIA_API_KEY` |
+| Control (operator plane) | `control` (rootDirectory `apps/control`) | `control.bageltech.net` | `CONTROL_DATABASE_URL`, `CONTROL_API_TOKEN` |
+
+Notes from the 2026-08-15 wiring:
+
+- Set secrets through the Vercel **REST API** (`POST /v9/projects/{id}/env`). The CLI's
+  `vercel env add` (v55) silently stores empty values even with `--value` or piped stdin;
+  `vercel env pull` is the reliable way to confirm values (it decrypts).
+- Deploy the product app by pushing to git (auto-deploy) or `vercel redeploy <id>` from
+  `apps/product`. Deploy the control app from the **repo root** with `vercel --prod` — running
+  it from `apps/control` alone cannot resolve the `@contractor-platform/*` workspace packages.
+- Deployment protection is SSO `all_except_custom_domains`: the custom domains above are
+  public; `*.vercel.app` URLs require SSO.
+- Runtime-verified 2026-08-15: product `/api/health` → 200 `{database:true,schema:true}`;
+  control `/api/health` → 200 with DB + schema checks; control `/api/organizations` → 200 with
+  `Bearer CONTROL_API_TOKEN`, 401 without.
 
 `DATABASE_URL_OWNER` existing only on your machine is what keeps a deployed application from
 being able to run DDL or bypass the role model.

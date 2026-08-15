@@ -85,7 +85,31 @@ One organization config and a 17-item price book. Re-seed rather than migrate: e
 book to the new schema's import format and re-approve the configuration. There is no customer,
 estimate, invoice, or payment data to preserve.
 
-## Predecessor status
+## Post-port additions
+
+Not prototype ports — new capabilities built in this repository after cutover began:
+
+| Item | Notes |
+|---|---|
+| Internal invoice from a signed estimate | Migration `012`, `apps/product/src/lib/invoices.ts` + `/api/field/invoices`. One invoice per estimate (partial unique index), header + lines copied inside a guarded CTE that never touches the estimate row, persisted totals, `invoice_events 'created'` + `estimate_events 'invoice_created'`, idempotent `reused:true` on repeat. Estimate list derives a read-only `invoiceId`; field invoices carry `invoices.read` / `invoices.open` capabilities. Shipped `63b59a3` and deployed to Vercel production. |
+
+## Deployment status
+
+Both apps are deployed on Vercel (team `bagel-tech`); production points at the protected (once
+Neon protection is enabled) `production` branch.
+
+- **Product** — `jbox-product`, `usejbox.com` (auto-deploys on git push). Env wired: DB URLs,
+  control-plane URL, cron/customer-link/field/provision secrets, `NVIDIA_API_KEY`.
+- **Control** — project `control` (rootDirectory `apps/control`), `control.bageltech.net`,
+  deploy from the repo root (`vercel --prod`). Env: `CONTROL_DATABASE_URL`, `CONTROL_API_TOKEN`.
+- Runtime-verified 2026-08-15: product `/api/health` and control `/api/health` both 200 with DB
+  + schema checks; control `/api/organizations` returns orgs with the bearer token and 401s
+  without. The `demo` org it returns is the same `DEVELOPMENT_FIELD_ORGANIZATION_ID` the product
+  uses for field demo mode.
+
+The Fly configs (`fly.product.toml`, `fly.control.toml`) and the DATABASE_SETUP.md Fly section
+are stale; Vercel is the deployment target.
+
 
 `paris-electric-prototype` continues to serve Paris Electric in `dedicated` mode
 (`/api/health` reports `deploymentMode: "dedicated"`, `schemaVersion: "039"`) and is
