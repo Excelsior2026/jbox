@@ -14,7 +14,8 @@ import { publicRequestIsSameOrigin } from '@/lib/request-origin';
 export const dynamic = 'force-dynamic';
 
 const MAX_SIGNER_NAME = 120;
-const MAX_BODY_BYTES = 4096;
+const MAX_SIGNATURE_IMAGE = 262144;
+const MAX_BODY_BYTES = 270000;
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -52,6 +53,15 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     return privateJson({ error: 'A signer name is required.', field: 'signerName' }, 400);
   }
 
+  const signatureImage = typeof body.signatureImage === 'string' && body.signatureImage.length > 0
+    ? body.signatureImage
+    : null;
+  if (signatureImage !== null && (
+    !signatureImage.startsWith('data:image/') || signatureImage.length > MAX_SIGNATURE_IMAGE
+  )) {
+    return privateJson({ error: 'The signature image is invalid.', field: 'signatureImage' }, 400);
+  }
+
   if (!isDatabaseConfigured()) {
     return privateJson({ error: 'Estimates unavailable' }, 503);
   }
@@ -60,7 +70,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     return await withFieldContext(principal, async () => {
       const result = await signEstimate(
         id,
-        { signerName, signatureContext: 'protected-published' },
+        { signerName, signatureContext: 'protected-published', signatureImage },
         {
           ip: getClientIp(request).slice(0, 128),
           userAgent: (request.headers.get('user-agent') ?? '').slice(0, 512) || null,

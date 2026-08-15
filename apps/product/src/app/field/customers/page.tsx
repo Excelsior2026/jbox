@@ -66,43 +66,35 @@ export default async function CustomerDirectory({ searchParams }: DirectoryProps
 
       <div style={{ marginTop: '18px' }}>
         {customers.length === 0 ? (
-          <div className={styles.empty}>
+          <div className={styles.estimateListEmpty}>
+            <strong>{query ? 'No matching customers' : 'No customers yet'}</strong>
             <p>
               {query
-                ? `No customers match “${query}”.`
-                : 'No customers yet. Add the first one to start estimating.'}
+                ? 'Try a different name, phone, email, address, or town.'
+                : 'Add a customer or create an estimate from a service request.'}
             </p>
             <Link className={styles.button} href="/field/customers/new">New customer</Link>
           </div>
         ) : (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Customer</th>
-                  <th>Phone</th>
-                  <th>Email</th>
-                  <th>Town</th>
-                  <th>Updated</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customers.map((customer) => (
-                  <tr key={customer.id}>
-                    <td>
-                      <Link className={styles.rowLink} href={`/field/customers/${customer.id}`}>
-                        {customer.name}
-                      </Link>
-                      <div className={styles.cellMuted}>{customer.displayId}</div>
-                    </td>
-                    <td>{customer.phone ?? <span className={styles.cellMuted}>—</span>}</td>
-                    <td>{customer.email ?? <span className={styles.cellMuted}>—</span>}</td>
-                    <td>{customer.town ?? <span className={styles.cellMuted}>—</span>}</td>
-                    <td className={styles.cellMuted}>{dateTime(customer.updatedAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className={styles.customerDirectoryGrid}>
+            {customers.map((customer) => (
+              <Link
+                className={styles.customerDirectoryCard}
+                href={`/field/customers/${customer.id}`}
+                key={customer.id}
+              >
+                <div className={styles.customerDirectoryCardHeading}>
+                  <span>{customer.displayId}</span>
+                  <time dateTime={customer.updatedAt}>Updated {dateTime(customer.updatedAt)}</time>
+                </div>
+                <strong>{customer.name}</strong>
+                <p>{[customer.address, customer.town].filter(Boolean).join(', ') || 'No service address on file'}</p>
+                <div className={styles.customerDirectoryContact}>
+                  <span>{customer.phone || 'No phone'}</span>
+                  <span>{customer.email || 'No email'}</span>
+                </div>
+              </Link>
+            ))}
           </div>
         )}
       </div>

@@ -21,7 +21,12 @@ describe('validateEstimateDraftInput', () => {
     customer: { name: 'Jane Smith', phone: '(631) 555-0142', email: '', address: '14 Maple Dr', town: 'Smithtown', project: 'Lighting' },
     scope: '', exclusions: '', notes: '',
     discountMillipercent: 0, surchargeCents: 0, taxRateMillipercent: 8625, depositCents: 0,
-    lineItems: [{ itemCode: 'REC-1', description: 'Recessed light', itemVersionId: RELEASE_ITEM_VERSION_ID, unitPriceCents: 18500, quantityHundredths: 600, taxable: true }],
+    areas: [{ id: 'area-living', name: 'Living room' }],
+    lineItems: [{
+      itemCode: 'REC-1', description: 'Recessed light', itemVersionId: RELEASE_ITEM_VERSION_ID,
+      unitPriceCents: 18500, quantityHundredths: 600, taxable: true,
+      areaId: 'area-living', priceOrigin: 'published-price-book', catalogItemId: null, releaseId: null,
+    }],
   });
 
   it('accepts a well-formed draft', () => {
@@ -49,7 +54,29 @@ describe('validateEstimateDraftInput', () => {
     expect(validateEstimateDraftInput(bad).ok).toBe(false);
   });
   it('accepts a line without a price-book version (technician-custom pricing)', () => {
-    const draft = base(); draft.lineItems[0].itemVersionId = null;
+    const draft = base(); draft.lineItems[0].itemVersionId = null; draft.lineItems[0].priceOrigin = 'technician-custom';
     expect(validateEstimateDraftInput(draft).ok).toBe(true);
+  });
+  it('rejects a published-price-book line without an item version', () => {
+    const bad = base(); bad.lineItems[0].itemVersionId = null;
+    expect(validateEstimateDraftInput(bad).ok).toBe(false);
+  });
+  it('rejects an unknown price origin', () => {
+    const bad = base(); bad.lineItems[0].priceOrigin = 'wholesale';
+    expect(validateEstimateDraftInput(bad).ok).toBe(false);
+  });
+  it('rejects an area id that is not listed', () => {
+    const bad = base(); bad.lineItems[0].areaId = 'area-basement';
+    expect(validateEstimateDraftInput(bad).ok).toBe(false);
+  });
+  it('accepts an area-less draft', () => {
+    const draft = base();
+    draft.areas = [];
+    draft.lineItems[0].areaId = null;
+    expect(validateEstimateDraftInput(draft).ok).toBe(true);
+  });
+  it('rejects areas that are not an array', () => {
+    const bad = base(); bad.areas = 'living' as unknown as typeof bad.areas;
+    expect(validateEstimateDraftInput(bad).ok).toBe(false);
   });
 });

@@ -7,10 +7,8 @@ import {
 } from '@/lib/field-api-auth';
 import { isDatabaseConfigured } from '@/lib/db';
 import { getEstimate } from '@/lib/estimates';
-import type { EstimateRecord } from '@/lib/estimate-record';
-import type { EstimateDraftInput } from '@/lib/estimate-contract';
 import { UUID_PATTERN } from '@/lib/ids';
-import { EstimateEditor } from '../../estimate-editor';
+import FieldEstimator from '../../field-estimator';
 import styles from '../../../field.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -18,34 +16,6 @@ export const dynamic = 'force-dynamic';
 type EditEstimateProps = {
   params: Promise<{ id: string }>;
 };
-
-function draftFromEstimate(estimate: EstimateRecord): EstimateDraftInput {
-  return {
-    customer: {
-      name: estimate.customer.name,
-      phone: estimate.customer.phone,
-      email: estimate.customer.email,
-      address: estimate.customer.address,
-      town: estimate.customer.town,
-      project: estimate.title,
-    },
-    scope: estimate.scope,
-    exclusions: estimate.exclusions,
-    notes: estimate.notes,
-    discountMillipercent: estimate.discountMillipercent,
-    surchargeCents: estimate.surchargeCents,
-    taxRateMillipercent: estimate.taxRateMillipercent,
-    depositCents: estimate.depositCents,
-    lineItems: estimate.lineItems.map((line) => ({
-      itemCode: line.itemCode,
-      description: line.description,
-      itemVersionId: line.itemVersionId,
-      unitPriceCents: line.unitPriceCents,
-      quantityHundredths: line.quantityHundredths,
-      taxable: line.taxable,
-    })),
-  };
-}
 
 export default async function EditEstimate({ params }: EditEstimateProps) {
   const principal = await getFieldPrincipal();
@@ -99,11 +69,10 @@ export default async function EditEstimate({ params }: EditEstimateProps) {
         <Link className={styles.buttonGhost} href={`/field/estimates/${estimate.id}`}>Back to estimate</Link>
       </header>
 
-      <EstimateEditor
-        expectedUpdatedAt={estimate.updatedAt}
+      <FieldEstimator
+        protectedAccess={principal.kind !== 'development'}
         estimateId={estimate.id}
-        initialDraft={draftFromEstimate(estimate)}
-        mode="edit"
+        initial={estimate}
       />
     </>
   );

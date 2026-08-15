@@ -12,6 +12,24 @@ export function canTransition(from: EstimateStatus, to: EstimateStatus): boolean
   return TRANSITIONS[from]?.has(to) ?? false;
 }
 
+export type EstimateLinePriceOrigin = 'published-price-book' | 'technician-custom' | 'unverified';
+
+export type EstimatePlanMarkerInput = {
+  id: string;
+  type: 'outlet' | 'light' | 'switch' | 'equipment';
+  x: number;
+  y: number;
+};
+
+export type EstimateAreaInput = {
+  id: string;
+  name: string;
+  lengthFt?: number;
+  widthFt?: number;
+  notes?: string;
+  markers?: EstimatePlanMarkerInput[];
+};
+
 export type EstimateLineInput = {
   itemCode: string;
   description: string;
@@ -19,12 +37,17 @@ export type EstimateLineInput = {
   unitPriceCents: number;
   quantityHundredths: number;
   taxable: boolean;
+  areaId: string | null;
+  priceOrigin: EstimateLinePriceOrigin;
+  catalogItemId: string | null;
+  releaseId: string | null;
 };
 
 export type EstimateDraftInput = {
   customer: { name: string; phone: string; email: string; address: string; town: string; project: string };
   scope: string; exclusions: string; notes: string;
   discountMillipercent: number; surchargeCents: number; taxRateMillipercent: number; depositCents: number;
+  areas: EstimateAreaInput[];
   lineItems: EstimateLineInput[];
 };
 
@@ -68,6 +91,32 @@ export function validateEstimateDraftInput(
     if (typeof v[k] !== 'string' || (v[k] as string).length > 4000) return { ok: false, error: `${k} is invalid.` };
   }
   if (!Array.isArray(v.lineItems)) return { ok: false, error: 'lineItems must be an array.' };
+  const areaIds = new Set<string>();
+  if (Array.isArray(v.areas)) {
+    for (const raw of v.areas as unknown[]) {
+      const area = raw as Record<string, unknown>;
+      if (!isStr(area.id, 1, 100)) return { ok: false, error: 'Area id is invalid.' };
+      if (!isStr(area.name, 1, 200)) return { ok: false, error: 'Area name is required.' };
+      if (area.lengthFt !== undefined && !isNonNegInt(area.lengthFt)) return { ok: false, error: 'Area length is invalid.' };
+      if (area.widthFt !== undefined && !isNonNegInt(area.widthFt)) return { ok: false, error: 'Area width is invalid.' };
+      if (area.notes !== undefined && !isStr(area.notes, 0, 4000)) return { ok: false, error: 'Area notes are invalid.' };
+      if (area.markers !== undefined) {
+        if (!Array.isArray(area.markers)) return { ok: false, error: 'Area markers must be an array.' };
+        for (const marker of area.markers as unknown[]) {
+          const m = marker as Record<string, unknown>;
+          if (!isStr(m.id, 1, 100)) return { ok: false, error: 'Marker id is invalid.' };
+          if (m.type !== 'outlet' && m.type !== 'light' && m.type !== 'switch' && m.type !== 'equipment') {
+            return { ok: false, error: 'Marker type is invalid.' };
+          }
+          if (!isNonNegInt(m.x) || !isNonNegInt(m.y)) return { ok: false, error: 'Marker position is invalid.' };
+        }
+      }
+      areaIds.add(area.id as string);
+    }
+  } else if (v.areas !== undefined) {
+    return { ok: false, error: 'areas must be an array.' };
+  }
+  const priceOrigins = new Set<EstimateLinePriceOrigin>(['published-price-book', 'technician-custom', 'unverified']);
   for (const raw of v.lineItems as unknown[]) {
     const li = raw as Record<string, unknown>;
     if (!isStr(li.itemCode, 0, 40)) return { ok: false, error: 'Line item code is invalid.' };
@@ -78,6 +127,20 @@ export function validateEstimateDraftInput(
     }
     if (typeof li.taxable !== 'boolean' || !isNullableUuid(li.itemVersionId)) {
       return { ok: false, error: 'Line item flags are invalid.' };
+    }
+    if (typeof li.priceOrigin !== 'string' || !priceOrigins.has(li.priceOrigin as EstimateLinePriceOrigin)) {
+      return { ok: false, error: 'Line item price origin is invalid.' };
+    }
+    if (li.priceOrigin === 'published-price-book' && li.itemVersionId === null) {
+      return { ok: false, error: 'Line item price origin requires a published item version.' };
+    }
+    if (li.areaId !== null && li.areaId !== undefined) {
+      if (typeof li.areaId !== 'string' || !areaIds.has(li.areaId)) {
+        return { ok: false, error: 'Line item area must reference a listed area.' };
+      }
+    }
+    if (!isNullableUuid(li.catalogItemId) || !isNullableUuid(li.releaseId)) {
+      return { ok: false, error: 'Line item catalog references are invalid.' };
     }
   }
   return { ok: true, value: value as EstimateDraftInput };

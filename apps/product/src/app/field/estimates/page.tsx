@@ -10,6 +10,7 @@ import { listCustomers } from '@/lib/customers';
 import type { EstimateStatus } from '@/lib/estimate-contract';
 import { UUID_PATTERN } from '@/lib/ids';
 import { dateTime, money, STATUS_LABELS } from '../format';
+import NewEstimateButton from './new-estimate-button';
 import styles from '../field.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -17,9 +18,9 @@ export const dynamic = 'force-dynamic';
 const STATUSES = new Set<EstimateStatus>(['draft', 'signed', 'declined']);
 
 const STATUS_CLASS: Record<EstimateStatus, string> = {
-  draft: styles.statusDraft,
-  signed: styles.statusSigned,
-  declined: styles.statusDeclined,
+  draft: styles.estimateStatus_draft,
+  signed: styles.estimateStatus_signed,
+  declined: styles.estimateStatus_declined,
 };
 
 type EstimatesProps = {
@@ -70,7 +71,7 @@ export default async function EstimatesList({ searchParams }: EstimatesProps) {
             {selectedCustomer && <> · {selectedCustomer.name}</>}
           </p>
         </div>
-        <Link className={styles.button} href="/field/estimates/new">New estimate</Link>
+        <NewEstimateButton />
       </header>
 
       <form className={styles.searchForm} method="get" action="/field/estimates">
@@ -96,49 +97,30 @@ export default async function EstimatesList({ searchParams }: EstimatesProps) {
 
       <div style={{ marginTop: '18px' }}>
         {estimates.length === 0 ? (
-          <div className={styles.empty}>
-            <p>No estimates match these filters.</p>
-            <Link className={styles.button} href="/field/estimates/new">New estimate</Link>
+          <div className={styles.estimateListEmpty}>
+            <strong>No estimates yet</strong>
+            <p>Start with an existing customer or add a new customer record.</p>
+            <NewEstimateButton label="Create the first estimate" variant="plain" />
           </div>
         ) : (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Estimate</th>
-                  <th>Customer</th>
-                  <th>Town</th>
-                  <th>Status</th>
-                  <th className={styles.amount}>Total</th>
-                  <th>Updated</th>
-                </tr>
-              </thead>
-              <tbody>
-                {estimates.map((estimate) => (
-                  <tr key={estimate.id}>
-                    <td>
-                      <Link className={styles.rowLink} href={`/field/estimates/${estimate.id}`}>
-                        {estimate.displayId}
-                      </Link>
-                      <div className={styles.cellMuted}>{estimate.title}</div>
-                    </td>
-                    <td>
-                      <Link className={styles.rowLink} href={`/field/customers/${estimate.customerId}`}>
-                        {estimate.customerName}
-                      </Link>
-                    </td>
-                    <td>{estimate.town || <span className={styles.cellMuted}>—</span>}</td>
-                    <td>
-                      <span className={`${styles.badge} ${STATUS_CLASS[estimate.status]}`}>
-                        {STATUS_LABELS[estimate.status]}
-                      </span>
-                    </td>
-                    <td className={styles.amount}>{money(estimate.totals.totalCents)}</td>
-                    <td className={styles.cellMuted}>{dateTime(estimate.updatedAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className={styles.estimateGrid}>
+            {estimates.map((estimate) => (
+              <Link className={styles.estimateCard} href={`/field/estimates/${estimate.id}`} key={estimate.id}>
+                <div className={styles.estimateCardHeading}>
+                  <span className={`${styles.estimateStatus} ${STATUS_CLASS[estimate.status]}`}>
+                    {STATUS_LABELS[estimate.status]}
+                  </span>
+                  <time dateTime={estimate.updatedAt}>{dateTime(estimate.updatedAt)}</time>
+                </div>
+                <strong>{estimate.customerName}</strong>
+                <p>{estimate.title || 'Project details not added'}</p>
+                <div className={styles.estimateCardMeta}>
+                  <span>{estimate.displayId}</span>
+                  <span>{estimate.town || 'Town not added'}</span>
+                  <strong>{money(estimate.totals.totalCents)}</strong>
+                </div>
+              </Link>
+            ))}
           </div>
         )}
       </div>

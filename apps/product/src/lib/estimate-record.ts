@@ -1,5 +1,21 @@
 import type { Totals } from '@contractor-platform/money';
-import type { EstimateStatus } from '@/lib/estimate-contract';
+import type { EstimateStatus, EstimateLinePriceOrigin } from '@/lib/estimate-contract';
+
+export type EstimatePlanMarkerRecord = {
+  id: string;
+  type: 'outlet' | 'light' | 'switch' | 'equipment';
+  x: number;
+  y: number;
+};
+
+export type EstimateAreaRecord = {
+  id: string;
+  name: string;
+  lengthFt?: number;
+  widthFt?: number;
+  notes?: string;
+  markers?: EstimatePlanMarkerRecord[];
+};
 
 export type EstimateLineRecord = {
   id: string;
@@ -11,6 +27,10 @@ export type EstimateLineRecord = {
   quantityHundredths: number;
   taxable: boolean;
   lineTotalCents: number;
+  areaId: string | null;
+  priceOrigin: EstimateLinePriceOrigin;
+  catalogItemId: string | null;
+  releaseId: string | null;
 };
 
 export type EstimateCustomerView = {
@@ -27,6 +47,7 @@ export type EstimateRecord = {
   displayId: string;
   customerId: string;
   serviceRequestId: string | null;
+  jobId: string | null;
   status: EstimateStatus;
   title: string;
   notes: string;
@@ -40,9 +61,12 @@ export type EstimateRecord = {
   moneyVersion: number;
   documentTemplateVersion: string;
   customer: EstimateCustomerView;
+  areas: EstimateAreaRecord[];
   lineItems: EstimateLineRecord[];
   signedByName: string | null;
   signedAt: string | null;
+  signatureContext: string | null;
+  signatureImage: string | null;
   declinedAt: string | null;
   contentHash: string | null;
   createdAt: string;

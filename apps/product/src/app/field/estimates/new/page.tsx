@@ -7,7 +7,7 @@ import {
 import { isDatabaseConfigured } from '@/lib/db';
 import { getCustomer } from '@/lib/customers';
 import { UUID_PATTERN } from '@/lib/ids';
-import { EstimateEditor } from '../estimate-editor';
+import FieldEstimator from '../field-estimator';
 import styles from '../../field.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -53,10 +53,10 @@ export default async function NewEstimate({ searchParams }: NewEstimateProps) {
         <Link className={styles.buttonGhost} href="/field/estimates">Back to estimates</Link>
       </header>
 
-      <EstimateEditor
-        customer={customer ?? undefined}
+      <FieldEstimator
         customerId={customer?.id}
-        mode="create"
+        customerRecord={customer ?? undefined}
+        protectedAccess={principal.kind !== 'development'}
       />
     </>
   );

@@ -45,7 +45,17 @@ function mapLine(r: LineRow): EstimateLineRecord {
     quantityHundredths: Number(r.quantity_hundredths),
     taxable: r.taxable as boolean,
     lineTotalCents: Number(r.line_total_cents),
+    areaId: (r.area_id as string) ?? null,
+    priceOrigin: (r.price_origin as EstimateLineRecord['priceOrigin']) ?? 'unverified',
+    catalogItemId: (r.catalog_item_id as string) ?? null,
+    releaseId: (r.release_id as string) ?? null,
   };
+}
+
+function mapAreas(header: HeaderRow): EstimateRecord['areas'] {
+  const raw = header.areas;
+  if (!Array.isArray(raw)) return [];
+  return raw as EstimateRecord['areas'];
 }
 
 function totalsFor(header: HeaderRow): Totals {
@@ -79,6 +89,9 @@ const HEADER_SELECT = `
   to_json(e.updated_at) AS updated_at_token,
   to_json(e.signed_at) AS signed_at_token,
   to_json(e.declined_at) AS declined_at_token,
+  (SELECT job.id FROM jobs job
+    WHERE job.estimate_id = e.id AND job.organization_id = e.organization_id
+    ORDER BY job.created_at, job.id LIMIT 1) AS job_id,
   c.display_name AS customer_display_name,
   c.phone AS customer_phone_live,
   c.email AS customer_email_live,
@@ -94,6 +107,7 @@ function mapEstimate(header: HeaderRow, lines: LineRow[]): EstimateRecord {
     displayId: header.display_id as string,
     customerId: header.customer_id as string,
     serviceRequestId: (header.service_request_id as string) ?? null,
+    jobId: (header.job_id as string) ?? null,
     status: header.status as EstimateStatus,
     title: header.title as string,
     notes: (header.notes as string) ?? '',
@@ -107,9 +121,12 @@ function mapEstimate(header: HeaderRow, lines: LineRow[]): EstimateRecord {
     moneyVersion: header.money_version as number,
     documentTemplateVersion: header.document_template_version as string,
     customer: mapCustomer(header),
+    areas: mapAreas(header),
     lineItems: lines.map(mapLine),
     signedByName: (header.signed_by_name as string) ?? null,
     signedAt: header.signed_at ? timestampToken(header, 'signed_at') : null,
+    signatureContext: (header.signature_context as string) ?? null,
+    signatureImage: (header.signature_image as string) ?? null,
     declinedAt: header.declined_at ? timestampToken(header, 'declined_at') : null,
     contentHash: (header.content_hash as string) ?? null,
     createdAt: timestampToken(header, 'created_at'),
@@ -174,6 +191,23 @@ function computeLineTotals(lines: EstimateDraftInput['lineItems']): number[] {
   );
 }
 
+function linesPayload(input: EstimateDraftInput, lineTotals: number[]) {
+  return input.lineItems.map((li, position) => ({
+    position,
+    item_code: li.itemCode,
+    description: li.description,
+    item_version_id: li.itemVersionId,
+    quantity_hundredths: li.quantityHundredths,
+    unit_price_cents: li.unitPriceCents,
+    taxable: li.taxable,
+    line_total_cents: lineTotals[position],
+    area_id: li.areaId,
+    price_origin: li.priceOrigin,
+    catalog_item_id: li.catalogItemId,
+    release_id: li.releaseId,
+  }));
+}
+
 function computeFinancialTotals(input: EstimateDraftInput): Totals {
   return computeTotals(
     input.lineItems.map((li) => ({
@@ -206,7 +240,7 @@ export async function createEstimate(
      header AS (
        INSERT INTO estimates
          (organization_id, document_number, display_id, customer_id, service_request_id, status,
-          title, notes, scope, exclusions,
+          title, notes, scope, exclusions, areas,
           discount_millipercent, surcharge_cents, tax_rate_millipercent, deposit_cents,
           subtotal_cents, taxable_subtotal_cents, discount_cents,
           taxable_after_discount_cents, tax_cents, total_cents,
@@ -214,29 +248,33 @@ export async function createEstimate(
        SELECT app_require_organization_id(), allocated.n,
               $1 || lpad(allocated.n::text, 4, '0'),
               $2, $3, 'draft',
-              $4, $5, $6, $7,
-              $8, $9, $10, $11,
-              $12, $13, $14, $15, $16, $17,
-              $18
+              $4, $5, $6, $7, $8,
+              $9, $10, $11, $12,
+              $13, $14, $15, $16, $17, $18,
+              $19
        FROM allocated
        RETURNING id
      ),
      inserted_lines AS (
        INSERT INTO estimate_line_items
          (organization_id, estimate_id, position, item_code, description, item_version_id,
-          quantity_hundredths, unit_price_cents, taxable, line_total_cents)
+          quantity_hundredths, unit_price_cents, taxable, line_total_cents,
+          area_id, price_origin, catalog_item_id, release_id)
        SELECT app_require_organization_id(), header.id, x.position, x.item_code, x.description,
               x.item_version_id::uuid, x.quantity_hundredths, x.unit_price_cents, x.taxable,
-              x.line_total_cents
-       FROM jsonb_to_recordset($19::jsonb)
+              x.line_total_cents, x.area_id, x.price_origin,
+              x.catalog_item_id::uuid, x.release_id::uuid
+       FROM jsonb_to_recordset($20::jsonb)
             AS x(position int, item_code text, description text, item_version_id text,
-                  quantity_hundredths bigint, unit_price_cents bigint, taxable boolean, line_total_cents bigint)
+                  quantity_hundredths bigint, unit_price_cents bigint, taxable boolean,
+                  line_total_cents bigint, area_id text, price_origin text,
+                  catalog_item_id text, release_id text)
        CROSS JOIN header
      ),
      logged AS (
        INSERT INTO estimate_events (organization_id, estimate_id, event, actor_id, meta)
-       SELECT app_require_organization_id(), header.id, 'created', $20,
-              jsonb_build_object('request_ip', $21::text, 'user_agent', $22::text)
+       SELECT app_require_organization_id(), header.id, 'created', $21,
+              jsonb_build_object('request_ip', $22::text, 'user_agent', $23::text)
        FROM header
      )
      SELECT header.id FROM header`,
@@ -248,6 +286,7 @@ export async function createEstimate(
       input.notes,
       input.scope,
       input.exclusions,
+      JSON.stringify(input.areas ?? []),
       input.discountMillipercent,
       input.surchargeCents,
       input.taxRateMillipercent,
@@ -259,16 +298,7 @@ export async function createEstimate(
       totals.taxCents,
       totals.totalCents,
       CURRENT_MONEY_VERSION,
-      JSON.stringify(input.lineItems.map((li, position) => ({
-        position,
-        item_code: li.itemCode,
-        description: li.description,
-        item_version_id: li.itemVersionId,
-        quantity_hundredths: li.quantityHundredths,
-        unit_price_cents: li.unitPriceCents,
-        taxable: li.taxable,
-        line_total_cents: lineTotals[position],
-      }))),
+      JSON.stringify(linesPayload(input, lineTotals)),
       actorId,
       ctx.ip,
       ctx.userAgent,
@@ -303,25 +333,29 @@ export async function updateEstimate(
   const rows = (await sql.query(
     `WITH updated AS (
        UPDATE estimates SET
-         title = $2, notes = $3, scope = $4, exclusions = $5,
-         discount_millipercent = $6, surcharge_cents = $7,
-         tax_rate_millipercent = $8, deposit_cents = $9,
-         subtotal_cents = $10, taxable_subtotal_cents = $11, discount_cents = $12,
-         taxable_after_discount_cents = $13, tax_cents = $14, total_cents = $15,
+         title = $2, notes = $3, scope = $4, exclusions = $5, areas = $6,
+         discount_millipercent = $7, surcharge_cents = $8,
+         tax_rate_millipercent = $9, deposit_cents = $10,
+         subtotal_cents = $11, taxable_subtotal_cents = $12, discount_cents = $13,
+         taxable_after_discount_cents = $14, tax_cents = $15, total_cents = $16,
          updated_at = now()
-       WHERE id = $1 AND status = 'draft' AND updated_at = $16::timestamptz
+       WHERE id = $1 AND status = 'draft' AND updated_at = $17::timestamptz
        RETURNING id
      ),
      inserted AS (
        INSERT INTO estimate_line_items
          (organization_id, estimate_id, position, item_code, description, item_version_id,
-          quantity_hundredths, unit_price_cents, taxable, line_total_cents)
+          quantity_hundredths, unit_price_cents, taxable, line_total_cents,
+          area_id, price_origin, catalog_item_id, release_id)
        SELECT app_require_organization_id(), $1, x.position, x.item_code, x.description,
               x.item_version_id::uuid, x.quantity_hundredths, x.unit_price_cents, x.taxable,
-              x.line_total_cents
-       FROM jsonb_to_recordset($17::jsonb)
+              x.line_total_cents, x.area_id, x.price_origin,
+              x.catalog_item_id::uuid, x.release_id::uuid
+       FROM jsonb_to_recordset($18::jsonb)
             AS x(position int, item_code text, description text, item_version_id text,
-                  quantity_hundredths bigint, unit_price_cents bigint, taxable boolean, line_total_cents bigint)
+                  quantity_hundredths bigint, unit_price_cents bigint, taxable boolean,
+                  line_total_cents bigint, area_id text, price_origin text,
+                  catalog_item_id text, release_id text)
        WHERE EXISTS (SELECT 1 FROM updated)
        ON CONFLICT (estimate_id, position) DO UPDATE SET
          item_code = EXCLUDED.item_code,
@@ -330,20 +364,24 @@ export async function updateEstimate(
          quantity_hundredths = EXCLUDED.quantity_hundredths,
          unit_price_cents = EXCLUDED.unit_price_cents,
          taxable = EXCLUDED.taxable,
-         line_total_cents = EXCLUDED.line_total_cents
+         line_total_cents = EXCLUDED.line_total_cents,
+         area_id = EXCLUDED.area_id,
+         price_origin = EXCLUDED.price_origin,
+         catalog_item_id = EXCLUDED.catalog_item_id,
+         release_id = EXCLUDED.release_id
      ),
      pruned AS (
        DELETE FROM estimate_line_items
        WHERE estimate_id = $1
          AND position NOT IN (
-           SELECT position FROM jsonb_to_recordset($17::jsonb) AS x(position int)
+           SELECT position FROM jsonb_to_recordset($18::jsonb) AS x(position int)
          )
          AND EXISTS (SELECT 1 FROM updated)
      ),
      logged AS (
        INSERT INTO estimate_events (organization_id, estimate_id, event, actor_id, meta)
-       SELECT app_require_organization_id(), id, 'updated', $18,
-               jsonb_build_object('request_ip', $19::text, 'user_agent', $20::text)
+       SELECT app_require_organization_id(), id, 'updated', $19,
+               jsonb_build_object('request_ip', $20::text, 'user_agent', $21::text)
        FROM updated
      )
      SELECT id FROM updated`,
@@ -353,6 +391,7 @@ export async function updateEstimate(
       input.notes,
       input.scope,
       input.exclusions,
+      JSON.stringify(input.areas ?? []),
       input.discountMillipercent,
       input.surchargeCents,
       input.taxRateMillipercent,
@@ -364,16 +403,7 @@ export async function updateEstimate(
       totals.taxCents,
       totals.totalCents,
       expectedUpdatedAt,
-      JSON.stringify(input.lineItems.map((li, position) => ({
-        position,
-        item_code: li.itemCode,
-        description: li.description,
-        item_version_id: li.itemVersionId,
-        quantity_hundredths: li.quantityHundredths,
-        unit_price_cents: li.unitPriceCents,
-        taxable: li.taxable,
-        line_total_cents: lineTotals[position],
-      }))),
+      JSON.stringify(linesPayload(input, lineTotals)),
       actorId,
       ctx.ip,
       ctx.userAgent,
@@ -387,10 +417,14 @@ export async function updateEstimate(
 
 export async function signEstimate(
   id: string,
-  args: { signerName: string; signatureContext: string },
+  args: { signerName: string; signatureContext: string; signatureImage?: string | null },
   ctx: EstimateEventContext,
 ): Promise<{ ok: true; value: EstimateRecord } | { ok: false; reason: 'not-found' | 'locked' | 'invalid-context' }> {
   if (args.signatureContext !== 'protected-published') return { ok: false, reason: 'invalid-context' };
+  const signatureImage = args.signatureImage ?? null;
+  if (signatureImage !== null && signatureImage.length > 262144) {
+    return { ok: false, reason: 'invalid-context' };
+  }
 
   const current = await getEstimate(id);
   if (!current) return { ok: false, reason: 'not-found' };
@@ -421,14 +455,15 @@ export async function signEstimate(
        SET status = 'signed', signed_by_name = $2, signed_at = now(),
            content_hash = $3, updated_at = now(),
            customer_name = $4, customer_phone = $5, customer_email = $6,
-           customer_address = $7, customer_town = $8
-       WHERE id = $1 AND status = 'draft' AND updated_at = $9::timestamptz
+           customer_address = $7, customer_town = $8,
+           signature_context = $9, signature_image = $10
+       WHERE id = $1 AND status = 'draft' AND updated_at = $11::timestamptz
        RETURNING id
      ),
      logged AS (
        INSERT INTO estimate_events (organization_id, estimate_id, event, actor_id, meta)
-       SELECT app_require_organization_id(), id, 'signed', $10,
-               jsonb_build_object('content_hash', $3::text, 'request_ip', $11::text, 'user_agent', $12::text)
+       SELECT app_require_organization_id(), id, 'signed', $12,
+               jsonb_build_object('content_hash', $3::text, 'request_ip', $13::text, 'user_agent', $14::text)
        FROM updated
      )
      SELECT id FROM updated`,
@@ -441,6 +476,8 @@ export async function signEstimate(
       current.customer.email,
       current.customer.address,
       current.customer.town,
+      args.signatureContext,
+      signatureImage,
       current.updatedAt,
       actorId,
       ctx.ip,
@@ -497,7 +534,7 @@ export async function duplicateEstimate(id: string, ctx: EstimateEventContext): 
      header AS (
        INSERT INTO estimates
          (organization_id, document_number, display_id, customer_id, service_request_id, status,
-          title, notes, scope, exclusions,
+          title, notes, scope, exclusions, areas,
           discount_millipercent, surcharge_cents, tax_rate_millipercent, deposit_cents,
           subtotal_cents, taxable_subtotal_cents, discount_cents,
           taxable_after_discount_cents, tax_cents, total_cents,
@@ -505,29 +542,33 @@ export async function duplicateEstimate(id: string, ctx: EstimateEventContext): 
        SELECT app_require_organization_id(), allocated.n,
               $1 || lpad(allocated.n::text, 4, '0'),
               $2, $3, 'draft',
-              $4, $5, $6, $7,
-              $8, $9, $10, $11,
-              $12, $13, $14, $15, $16, $17,
-              $18
+              $4, $5, $6, $7, $8,
+              $9, $10, $11, $12,
+              $13, $14, $15, $16, $17, $18,
+              $19
        FROM allocated
        RETURNING id
      ),
      inserted_lines AS (
        INSERT INTO estimate_line_items
          (organization_id, estimate_id, position, item_code, description, item_version_id,
-          quantity_hundredths, unit_price_cents, taxable, line_total_cents)
+          quantity_hundredths, unit_price_cents, taxable, line_total_cents,
+          area_id, price_origin, catalog_item_id, release_id)
        SELECT app_require_organization_id(), header.id, x.position, x.item_code, x.description,
               x.item_version_id::uuid, x.quantity_hundredths, x.unit_price_cents, x.taxable,
-              x.line_total_cents
-       FROM jsonb_to_recordset($19::jsonb)
+              x.line_total_cents, x.area_id, x.price_origin,
+              x.catalog_item_id::uuid, x.release_id::uuid
+       FROM jsonb_to_recordset($20::jsonb)
             AS x(position int, item_code text, description text, item_version_id text,
-                  quantity_hundredths bigint, unit_price_cents bigint, taxable boolean, line_total_cents bigint)
+                  quantity_hundredths bigint, unit_price_cents bigint, taxable boolean,
+                  line_total_cents bigint, area_id text, price_origin text,
+                  catalog_item_id text, release_id text)
        CROSS JOIN header
      ),
      logged AS (
        INSERT INTO estimate_events (organization_id, estimate_id, event, actor_id, meta)
-       SELECT app_require_organization_id(), header.id, 'duplicated', $20,
-               jsonb_build_object('source', $21::text, 'request_ip', $22::text, 'user_agent', $23::text)
+       SELECT app_require_organization_id(), header.id, 'duplicated', $21,
+              jsonb_build_object('source', $22::text, 'request_ip', $23::text, 'user_agent', $24::text)
        FROM header
      )
      SELECT header.id FROM header`,
@@ -539,6 +580,7 @@ export async function duplicateEstimate(id: string, ctx: EstimateEventContext): 
       source.notes,
       source.scope,
       source.exclusions,
+      JSON.stringify(source.areas ?? []),
       source.discountMillipercent,
       source.surchargeCents,
       source.taxRateMillipercent,
@@ -559,6 +601,10 @@ export async function duplicateEstimate(id: string, ctx: EstimateEventContext): 
         unit_price_cents: li.unitPriceCents,
         taxable: li.taxable,
         line_total_cents: li.lineTotalCents,
+        area_id: li.areaId,
+        price_origin: li.priceOrigin,
+        catalog_item_id: li.catalogItemId,
+        release_id: li.releaseId,
       }))),
       actorId,
       id,

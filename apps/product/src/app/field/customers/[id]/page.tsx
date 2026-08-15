@@ -7,12 +7,20 @@ import {
 } from '@/lib/field-api-auth';
 import { isDatabaseConfigured } from '@/lib/db';
 import { getCustomer } from '@/lib/customers';
+import { listEstimates } from '@/lib/estimates';
+import type { EstimateStatus } from '@/lib/estimate-contract';
 import { UUID_PATTERN } from '@/lib/ids';
-import { dateTime } from '../../format';
+import { dateTime, money, STATUS_LABELS } from '../../format';
 import { CustomerForm } from '../customer-form';
 import styles from '../../field.module.css';
 
 export const dynamic = 'force-dynamic';
+
+const STATUS_CLASS: Record<EstimateStatus, string> = {
+  draft: styles.statusDraft,
+  signed: styles.statusSigned,
+  declined: styles.statusDeclined,
+};
 
 type CustomerDetailProps = {
   params: Promise<{ id: string }>;
@@ -31,7 +39,10 @@ export default async function CustomerDetail({ params }: CustomerDetailProps) {
     notFound();
   }
 
-  const customer = await withFieldContext(principal, () => getCustomer(id));
+  const [customer, estimates] = await withFieldContext(principal, async () => Promise.all([
+    getCustomer(id),
+    fieldPrincipalCan(principal, 'estimates.read') ? listEstimates({ customerId: id }) : Promise.resolve([]),
+  ]));
   if (!customer) notFound();
 
   const canEstimate = fieldPrincipalCan(principal, 'estimates.prepare');
@@ -73,12 +84,55 @@ export default async function CustomerDetail({ params }: CustomerDetailProps) {
       <CustomerForm mode="edit" initial={customer} />
 
       <h2 className={styles.sectionTitle} style={{ marginTop: '28px' }}>Estimates</h2>
-      <div className={styles.empty}>
-        <p>All estimates for this customer.</p>
-        <Link className={styles.buttonGhost} href={`/field/estimates?customerId=${customer.id}`}>
-          View estimates
-        </Link>
-      </div>
+      {estimates.length === 0 ? (
+        <div className={styles.empty}>
+          <p>No estimates for this customer yet.</p>
+          {canEstimate && (
+            <Link className={styles.button} href={`/field/estimates/new?customerId=${customer.id}`}>
+              Start an estimate
+            </Link>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Estimate</th>
+                  <th>Status</th>
+                  <th className={styles.amount}>Total</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {estimates.slice(0, 8).map((estimate) => (
+                  <tr key={estimate.id}>
+                    <td>
+                      <Link className={styles.rowLink} href={`/field/estimates/${estimate.id}`}>
+                        {estimate.displayId}
+                      </Link>
+                      <div className={styles.cellMuted}>{estimate.title}</div>
+                    </td>
+                    <td>
+                      <span className={`${styles.badge} ${STATUS_CLASS[estimate.status]}`}>
+                        {STATUS_LABELS[estimate.status]}
+                      </span>
+                    </td>
+                    <td className={styles.amount}>{money(estimate.totals.totalCents)}</td>
+                    <td className={styles.cellMuted}>{dateTime(estimate.updatedAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {estimates.length > 8 && (
+            <Link className={styles.buttonGhost} href={`/field/estimates?customerId=${customer.id}`} style={{ marginTop: '14px' }}>
+              View all {estimates.length} estimates
+            </Link>
+          )}
+        </>
+      )}
     </>
   );
 }
