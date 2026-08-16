@@ -36,6 +36,7 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     '@contractor-platform/ai',
     '@contractor-platform/configuration',
+    '@contractor-platform/database',
     '@contractor-platform/money',
   ],
   poweredByHeader: false,

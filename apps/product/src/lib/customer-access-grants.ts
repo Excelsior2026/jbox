@@ -20,8 +20,12 @@ export type CustomerAccessGrantRecord = {
 };
 
 type GrantRow = {
-  id: string; customer_id: string; document_type: 'estimate' | 'invoice';
-  document_id: string; purpose: 'sign' | 'view';
+  id: string;
+  organization_id: string;
+  customer_id: string;
+  document_type: 'estimate' | 'invoice';
+  document_id: string;
+  purpose: 'sign' | 'view';
   status: 'active' | 'revoked' | 'consumed';
   key_version: string;
   expires_at: string | Date;
@@ -170,18 +174,18 @@ export async function verifyCustomerAccessGrant(options: {
   const expiresAt = grant.expires_at instanceof Date ? grant.expires_at.toISOString() : String(grant.expires_at);
   if (new Date(expiresAt).getTime() < Date.now()) return { ok: false, reason: 'expired' };
 
+  // The grant row carries organization_id directly — use it rather than
+  // issuing a second round-trip to SELECT app_current_organization_id().
+  // Both values are the same (the session is scoped to this org), but reading
+  // the already-fetched column is cheaper and avoids the TOCTOU gap.
   const scope: CustomerAccessTokenScope = {
     grantId: grant.id,
-    organizationId: '', // from context below
+    organizationId: grant.organization_id,
     resourceInternalId: options.documentId,
     resourceVersionId: options.resourceVersionId ?? '',
     purpose: options.purpose,
     keyVersion: grant.key_version,
   };
-  const orgRows = (await sql.query('SELECT app_current_organization_id() AS organization_id')) as {
-    organization_id: string;
-  }[];
-  scope.organizationId = orgRows[0].organization_id;
 
   const expected = deriveCustomerAccessToken(scope);
   if (

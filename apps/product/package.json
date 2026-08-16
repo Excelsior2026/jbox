@@ -12,6 +12,7 @@
   "dependencies": {
     "@contractor-platform/ai": "0.1.0",
     "@contractor-platform/configuration": "0.1.0",
+    "@contractor-platform/database": "0.1.0",
     "@contractor-platform/domain": "0.1.0",
     "@contractor-platform/money": "0.1.0",
     "@upstash/redis": "^1.38.2",
@@ -21,7 +22,8 @@
     "pg": "^8.13.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "stripe": "^18.5.0"
   },
   "devDependencies": {
     "@types/node": "^20",

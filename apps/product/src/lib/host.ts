@@ -17,6 +17,10 @@ export const PLATFORM_HOSTS = new Set([
   'www.usejbox.com',
   'app.usejbox.com',
   'field.usejbox.com',
+  // Local development — classifyHost returns 'unknown' without this, which
+  // causes withTenant() to throw 'no-host' on every dev request.
+  'localhost',
+  '127.0.0.1',
 ]);
 
 export type HostKind = 'tenant' | 'platform' | 'unknown';

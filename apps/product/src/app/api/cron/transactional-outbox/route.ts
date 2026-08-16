@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { cronIsAuthorized, cronIsConfigured } from '@/lib/cron-auth';
 import { isDatabaseConfigured } from '@/lib/db';
 import { privateJson } from '@/lib/http';
+import { logger } from '@/lib/logger';
 import { dispatchOutboxMessages } from '@/lib/outbox-dispatch';
 
 export const dynamic = 'force-dynamic';
@@ -27,9 +28,12 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await dispatchOutboxMessages();
+    logger.info('Outbox drain complete.', result);
     return privateJson({ ok: true, ...result }, 200);
-  } catch {
-    console.error('Outbox dispatch failed.');
+  } catch (err) {
+    logger.error('Outbox dispatch failed.', {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return privateJson({ ok: false, error: 'Dispatch unavailable.' }, 503);
   }
 }

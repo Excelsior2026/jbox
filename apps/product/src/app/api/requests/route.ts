@@ -1,5 +1,7 @@
 import type { NextRequest } from 'next/server';
+import { headers } from 'next/headers';
 import { db } from '@/lib/db';
+import { classifyHost } from '@/lib/host';
 import { saveUpload } from '@/lib/storage';
 import { TenantResolutionError, loadInForceConfig, withTenant } from '@/lib/tenant';
 
@@ -29,16 +31,22 @@ function extensionFor(contentType: string, filename: string): string {
 /**
  * The storefront's inbound-lead inbox: creates a service_request (and its
  * photos) for the resolved tenant. Everything — the number allocation, the
- * request insert, and the photo rows — happens in ONE statement inside a single
- * transaction, so a partial request can never be written. Photos are saved to
- * storage first; an orphaned file if the insert fails is a smaller cost than a
- * request row with dangling photo keys.
+ * request insert, and the photo rows — happens in ONE statement inside a
+ * single transaction, so a partial request can never be written.
  *
- * This is the only path that writes a service_request from the public site, so
- * it is strict about both the tenant boundary (withTenant, fails closed) and
- * the payload.
+ * IMPORTANT: Tenant resolution happens BEFORE reading the multipart body.
+ * A hostile actor sending a 40 MB payload to an invalid hostname must not
+ * exhaust server memory before we know whether the hostname is valid. The
+ * lightweight host classification rejects unknown hosts before any I/O.
  */
 export async function POST(request: NextRequest) {
+  // --- Phase 1: fast host gate (no I/O) ------------------------------------
+  const host = (await headers()).get('host') ?? '';
+  if (classifyHost(host) !== 'tenant') {
+    return json({ error: 'This storefront is not available.' }, 404);
+  }
+
+  // --- Phase 2: parse body (now we know the host is a tenant shape) --------
   let form: FormData;
   try {
     form = await request.formData();
@@ -83,6 +91,7 @@ export async function POST(request: NextRequest) {
     return json({ error: problems.join('; ') }, 400);
   }
 
+  // --- Phase 3: DB-verified tenant resolution + write ----------------------
   return withTenant(async () => {
     const config = await loadInForceConfig();
     if (!config) return json({ error: 'This storefront is not available yet.' }, 503);

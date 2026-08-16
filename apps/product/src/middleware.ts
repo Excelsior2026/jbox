@@ -3,21 +3,20 @@ import type { NextRequest } from 'next/server';
 import { classifyHost } from '@/lib/host';
 
 /**
- * Host-shape routing gate (Next 16 calls this file proxy.ts; middleware is
- * deprecated).
+ * Host-shape routing gate.
  *
  * Tenant storefronts live on `*.usejbox.com` subdomains and are resolved per
  * request in withTenant()/loadStorefront() — that needs the database, so it
- * happens in render, not here. What proxy CAN do without I/O is gate on host
- * shape: platform hosts and unknown hostnames are rewritten onto the static
- * platform shell so a tenant page can never be reached under a non-tenant
- * host. The DB-level verification still happens in withTenant(), which fails
- * closed.
+ * happens in render, not here. What middleware CAN do without I/O is gate on
+ * host shape: platform hosts and unknown hostnames are rewritten onto the
+ * static platform shell so a tenant page can never be reached under a
+ * non-tenant host. The DB-level verification still happens in withTenant(),
+ * which fails closed.
  *
  * API routes are left alone: they resolve (and reject) tenants on their own.
  */
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   if (classifyHost(request.headers.get('host')) === 'tenant') {
     return NextResponse.next();
   }

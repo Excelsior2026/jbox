@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getFieldPrincipal } from '@/lib/field-api-auth';
 import { isFieldAuthConfigured } from '@/lib/identity-environment';
 import { ROLE_LABELS } from '@/lib/identity';
+import { platformDb, isDatabaseConfigured } from '@/lib/db';
 import styles from './field.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -26,6 +27,28 @@ export const metadata: Metadata = {
  * demo banner so the open workspace cannot be mistaken for an authenticated
  * production one.
  */
+const ACTIVE_STATUSES = new Set(['active', 'trialing', 'past_due']);
+
+/**
+ * Reads the subscription status for the given organization. Returns null when
+ * the database is not configured (dev mode). A non-active status means the
+ * tenant's trial has expired or they have canceled.
+ */
+async function getSubscriptionStatus(organizationId: string): Promise<string | null> {
+  if (!isDatabaseConfigured()) return null;
+  try {
+    // platform_runtime has no direct SELECT on organizations. Use the
+    // SECURITY DEFINER window from migration 014 instead.
+    const rows = await platformDb().query(
+      'SELECT subscription_status FROM resolve_organization_subscription($1)',
+      [organizationId],
+    ) as Array<{ subscription_status: string }>;
+    return rows[0]?.subscription_status ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function FieldLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const principal = await getFieldPrincipal();
 
@@ -62,12 +85,33 @@ export default async function FieldLayout({ children }: Readonly<{ children: Rea
     );
   }
 
+  // Subscription gate — show a warning banner when past_due / canceled but
+  // still let the user access the workspace so they can manage billing.
+  let subscriptionStatus: string | null = null;
+  if (principal.kind === 'jwt') {
+    subscriptionStatus = await getSubscriptionStatus(principal.organizationId);
+  }
+  const subscriptionBlocked = subscriptionStatus !== null
+    && !ACTIVE_STATUSES.has(subscriptionStatus);
+
   return (
     <div className={styles.shell}>
       {principal.kind === 'development' && (
         <div className={styles.demoBanner} role="note">
           Demo mode — you are exploring as an owner of the demo organization.
           Anyone with this link can view and change this workspace.
+        </div>
+      )}
+      {subscriptionBlocked && (
+        <div role="alert" style={{
+          background: '#fef9c3', color: '#713f12', borderBottom: '1px solid #fde047',
+          padding: '10px 24px', textAlign: 'center', fontSize: '0.88rem',
+        }}>
+          <strong>Subscription {subscriptionStatus}.</strong>{' '}
+          To keep using J-Box Field, please{' '}
+          <a href="/api/platform/billing/portal-redirect" style={{ color: '#713f12', fontWeight: 700 }}>
+            update your billing
+          </a>.
         </div>
       )}
       <header className={styles.header}>
@@ -77,6 +121,7 @@ export default async function FieldLayout({ children }: Readonly<{ children: Rea
             <Link className={styles.navLink} href="/field">Dashboard</Link>
             <Link className={styles.navLink} href="/field/customers">Customers</Link>
             <Link className={styles.navLink} href="/field/estimates">Estimates</Link>
+            <Link className={styles.navLink} href="/field/invoices">Invoices</Link>
           </nav>
           <div className={styles.headerActions}>
             {principal.kind === 'jwt' ? (
@@ -87,6 +132,13 @@ export default async function FieldLayout({ children }: Readonly<{ children: Rea
                     {ROLE_LABELS[principal.role]}
                   </span>
                 </span>
+                {principal.role === 'owner' && subscriptionStatus && (
+                  <form action="/api/platform/billing/portal-redirect" method="post">
+                    <button className={styles.buttonGhost} type="submit" style={{ fontSize: '0.8rem' }}>
+                      Billing
+                    </button>
+                  </form>
+                )}
                 <form action="/api/auth/logout" method="post">
                   <button className={styles.buttonGhost} type="submit">Sign out</button>
                 </form>

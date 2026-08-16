@@ -35,6 +35,7 @@ const nextConfig: NextConfig = {
   // Workspace packages export TS source directly; Next must compile them.
   transpilePackages: [
     '@contractor-platform/configuration',
+    '@contractor-platform/database',
   ],
   poweredByHeader: false,
   async headers() {

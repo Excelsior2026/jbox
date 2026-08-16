@@ -24,8 +24,15 @@ let pool: pg.Pool | null = null;
 
 function connectionPool() {
   if (!pool) {
+    const connectionString = controlDatabaseUrl();
     pool = new pg.Pool({
-      connectionString: controlDatabaseUrl(),
+      connectionString,
+      // Require SSL for all non-local connections, matching the product app's
+      // db.ts behaviour. A misconfigured URL or provider change cannot silently
+      // fall back to plaintext.
+      ssl: /localhost|127\.0\.0\.1/.test(connectionString)
+        ? false
+        : { rejectUnauthorized: true },
       max: Number(process.env.CONTROL_DATABASE_POOL_MAX ?? 5),
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,

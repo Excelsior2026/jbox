@@ -5,7 +5,8 @@ import {
   provisionTenantViaControlPlane,
   validateSubmitInput,
 } from '@/lib/onboarding';
-import { getClientIp, rateLimit } from '@/lib/rate-limit';
+import { getClientIp } from '@/lib/rate-limit';
+import { rateLimitWithFallback } from '@/lib/redis-rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ ok: true, tenant: null }, { status: 201 });
   }
 
-  if (!rateLimit(`onboarding:submit:${ip}`, { capacity: 5, refillPerMinute: 0.1 })) {
+  if (!(await rateLimitWithFallback(`onboarding:submit:${ip}`, { capacity: 5, refillPerMinute: 0.1 }))) {
     return Response.json({ ok: false, error: 'Too many signups from this address. Try again later.' }, { status: 429 });
   }
 

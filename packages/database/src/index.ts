@@ -9,4 +9,12 @@
  * docs/architecture/foundation-decisions.md. See docs/DATABASE_SETUP.md for
  * the owner/runtime role model that migrations run under.
  */
-export {};
+
+/**
+ * The filename of the most recently added migration.
+ *
+ * Import this constant into health-check routes so both apps always agree on
+ * the expected schema version without keeping two hand-rolled strings in sync.
+ * Update it whenever a new migration file is added to migrations/.
+ */
+export const LATEST_MIGRATION = '014_platform_runtime_observability.sql';

@@ -1,0 +1,585 @@
+
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>J-Box Code Review</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #1f2328;
+    background: #ffffff;
+    padding: 32px 16px 48px;
+  }
+  .wrapper { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { color: #57606a; font-size: 13px; margin-bottom: 32px; }
+  h2 { font-size: 15px; font-weight: 700; margin: 32px 0 12px; color: #1f2328; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; }
+  h3 { font-size: 13px; font-weight: 700; margin: 20px 0 6px; color: #1f2328; }
+  p { margin-bottom: 10px; }
+  code { font-family: ui-monospace, monospace; font-size: 12px; background: #f7f8fa; padding: 1px 5px; border-radius: 3px; border: 1px solid #e5e7eb; }
+  .finding {
+    margin-bottom: 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .finding-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 14px;
+    background: #f7f8fa;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 3px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .badge-blocker  { background: #fde8e8; color: #9e2020; }
+  .badge-high     { background: #fef0e0; color: #8a4b00; }
+  .badge-medium   { background: #fefbe0; color: #7a6200; }
+  .badge-low      { background: #e8f3e8; color: #1e5c1e; }
+  .badge-info     { background: #e8eef7; color: #1a3c6e; }
+  .finding-title  { font-size: 13px; font-weight: 700; }
+  .finding-loc    { font-size: 11px; color: #57606a; margin-top: 2px; font-family: ui-monospace, monospace; }
+  .finding-body   { padding: 10px 14px; font-size: 13px; }
+  .finding-body p:last-child { margin-bottom: 0; }
+  .finding-body ul { margin: 6px 0 6px 20px; }
+  .finding-body li { margin-bottom: 4px; }
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .summary-cell {
+    background: #f7f8fa;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 12px;
+    text-align: center;
+  }
+  .summary-cell .count { font-size: 26px; font-weight: 700; }
+  .summary-cell .label { font-size: 11px; color: #57606a; margin-top: 2px; }
+  .cnt-blocker { color: #9e2020; }
+  .cnt-high    { color: #8a4b00; }
+  .cnt-medium  { color: #7a6200; }
+  .cnt-low     { color: #1e5c1e; }
+  .cnt-info    { color: #1a3c6e; }
+  .section-intro { color: #57606a; font-size: 13px; margin-bottom: 16px; }
+  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e5e7eb; text-align: center; color: #57606a; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <h1>J-Box — Code Review &amp; Wiring Analysis</h1>
+  <p class="subtitle">Commit <code>29d77ef</code> · Full codebase scan · apps/product, apps/control, packages/*</p>
+
+  <div class="summary-grid">
+    <div class="summary-cell"><div class="count cnt-blocker">4</div><div class="label">Blockers</div></div>
+    <div class="summary-cell"><div class="count cnt-high">7</div><div class="label">High</div></div>
+    <div class="summary-cell"><div class="count cnt-medium">9</div><div class="label">Medium</div></div>
+    <div class="summary-cell"><div class="count cnt-low">8</div><div class="label">Low</div></div>
+    <div class="summary-cell"><div class="count cnt-info">6</div><div class="label">Info / Suggestions</div></div>
+  </div>
+
+  
+  <h2>🔴 Production Blockers</h2>
+  <p class="section-intro">These will prevent the system from working correctly under real load or will expose user data / money integrity errors.</p>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-blocker">BLOCKER</span>
+      <div>
+        <div class="finding-title">Shared singleton ScopedSql clients are not request-safe</div>
+        <div class="finding-loc">apps/product/src/lib/db.ts · lines 10–11, 129–141, 163–176</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p><code>tenantClient</code> and <code>platformClient</code> are module-level singletons. <code>executeTenantQueries</code> calls <code>requireOrganizationContext()</code> at execution time (correct), so the RLS context is per-call. However <code>createScopedClient</code> captures the <code>execute</code> closure at construction time and returns a shared object. Two concurrent requests therefore share one <code>ScopedSql</code> instance. The instance itself is stateless, so in practice this is safe — but only because today's <code>transaction()</code> implementation just collects statements and passes them to the executor. If <code>transaction()</code> is ever extended to accumulate pending state (e.g. a statement buffer), concurrent requests will corrupt each other's state without any obvious failure signal.</p>
+      <p>The deeper issue: <code>tenantClient</code> is recreated only once per process. This is fine for the executor, but if anyone stores in-progress state on the client object the design breaks. Recreating the client per-request (cheap; it's a thin wrapper) would make the safety invariant structural rather than a comment. Alternatively, add a clear note that <code>ScopedSql</code> must remain stateless.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-blocker">BLOCKER</span>
+      <div>
+        <div class="finding-title">Storage is local-disk only — not survivable on Vercel, breaks multi-machine Fly deployments</div>
+        <div class="finding-loc">apps/product/src/lib/storage.ts · apps/product/src/app/api/requests/route.ts</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>Service-request photos are written to the local filesystem (<code>STORAGE_DIR</code>). This works on a single Fly machine with a persistent volume, but:</p>
+      <ul>
+        <li>Vercel deployments (the current CI target) have no persistent filesystem. The product app also has a <code>vercel.json</code> and a <code>.vercel/</code> output — photos uploaded to a serverless function will be silently lost on the next invocation.</li>
+        <li>Any Fly deployment with multiple machines (scaling to 2+) means uploads on machine A are invisible on machine B.</li>
+        <li>The health check (migration 004) does not verify storage availability.</li>
+      </ul>
+      <p>The code acknowledges this with "Local object storage for the MVP," but it is a hard blocker before opening to a second user. Replace with an object-storage provider (R2, S3, Vercel Blob) keyed off <code>STORAGE_BACKEND</code>.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-blocker">BLOCKER</span>
+      <div>
+        <div class="finding-title">MFA disable endpoint stub — directory exists but route file is absent</div>
+        <div class="finding-loc">apps/product/src/app/api/auth/mfa/disable/ (empty directory)</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>The MFA enrollment flow (<code>/api/auth/mfa/enroll</code>, <code>/api/auth/mfa/setup</code>) is implemented. The disable endpoint directory exists but contains no <code>route.ts</code>. Any UI that links to <code>POST /api/auth/mfa/disable</code> will get a 404. A user who loses their authenticator device has no server-side recovery path — they cannot regain access without a direct database intervention. This is a support and compliance blocker for any tenant that has MFA enabled.</p>
+      <p>The missing path should perform: verify password (re-auth), verify current TOTP token, clear <code>platform_users.totp_secret</code>, set <code>organization_memberships.mfa_required = false</code>, and revoke all active sessions (force re-login).</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-blocker">BLOCKER</span>
+      <div>
+        <div class="finding-title">Onboarding rate-limiter uses in-process memory — honeypot check runs after JSON parse</div>
+        <div class="finding-loc">apps/product/src/app/api/platform/onboarding/route.ts · lines 25–39</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>Two problems in the signup route:</p>
+      <ul>
+        <li><strong>Rate limit is in-process memory only.</strong> The route uses <code>rateLimit()</code> (not <code>rateLimitWithFallback()</code>). On Vercel each invocation is a cold function — the bucket is empty on every request. With capacity 5 and no shared state, a single IP can sign up five times per cold start. The login route correctly uses <code>rateLimitWithFallback()</code>; onboarding does not. This is the highest-value abuse surface on the platform (provision cost, NVIDIA API cost).</li>
+        <li><strong>Honeypot check is post-parse.</strong> The honeypot fires after <code>request.json()</code>, which means any parse error (non-JSON body) returns 400 before the honeypot. Bots sending JSON with the field filled will not trigger it. Minor, but if the bot form-submits, the parse still succeeds because <code>fetch(..., body: formData)</code> will fail — harmless in this respect. Still, rate limiting must be fixed first.</li>
+      </ul>
+    </div>
+  </div>
+
+  
+  <h2>🟠 High Severity</h2>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-high">HIGH</span>
+      <div>
+        <div class="finding-title">control-db.ts pool has no SSL for production — DATABASE_URL only</div>
+        <div class="finding-loc">apps/control/src/lib/control-db.ts · lines 26–32</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>The product app's <code>db.ts</code> correctly applies <code>ssl: { rejectUnauthorized: true }</code> for non-localhost connections, falling back gracefully for local dev. The control app's <code>control-db.ts</code> creates its pool with <em>no SSL config at all</em>. On Neon (which requires SSL by default in the connection string), this works because <code>pg</code> can negotiate SSL from the URL — but a misconfigured URL or a future database move may silently use plaintext. Align with the product app's pattern.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-high">HIGH</span>
+      <div>
+        <div class="finding-title">verifyCustomerAccessGrant fetches organization_id from a separate query — TOCTOU gap</div>
+        <div class="finding-loc">apps/product/src/lib/customer-access-grants.ts · lines 181–184</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>After validating the token, the function issues a second <code>SELECT app_current_organization_id()</code> to populate <code>scope.organizationId</code>. The token was already validated against the grant row in the same DB session, so in practice this is the same value. However, the grant row already carries <code>organization_id</code> — it is read from the database in the first query. The code should use <code>grant.organization_id</code> directly. The extra round-trip is a latency cost and introduces an unnecessary query. It is also confusing: a reader sees an empty <code>organizationId: ''</code> in the scope literal and has to trace two steps to understand why it's safe.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-high">HIGH</span>
+      <div>
+        <div class="finding-title">service-request body read entirely into memory before tenant resolution</div>
+        <div class="finding-loc">apps/product/src/app/api/requests/route.ts · line 43</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>The storefront's <code>POST /api/requests</code> calls <code>request.formData()</code> — which buffers the entire multipart body including up to 5×8 MB photos (40 MB max) — before verifying that the hostname resolves to an active tenant. An attacker can exhaust server memory by posting large bodies to invalid hostnames. Tenant resolution should happen first (a lightweight hostname lookup), and the body should be read only once the tenant is confirmed. Alternatively, set <code>bodyParser.sizeLimit</code> at the Next.js config level and stream, rather than buffer.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-high">HIGH</span>
+      <div>
+        <div class="finding-title">Health check is hardcoded to migration 004 — will silently pass on a stale schema</div>
+        <div class="finding-loc">apps/product/src/app/api/health/route.ts · line 18</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>The health probe checks <code>WHERE name = '004_service_requests_...'</code>. There are now 12 migrations (001–012). A database at 004 will return <code>schema_ready: true</code> even though migrations 005–012 (MFA, outbox, TOTP, invoice creation, etc.) are missing. Load-balancers will route traffic to an instance that will then fail at runtime on missing columns or functions. The check should verify the <em>latest</em> migration by name, or check <code>COUNT(*) = expected</code>, or use the max recorded migration name against the known set.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-high">HIGH</span>
+      <div>
+        <div class="finding-title">Outbox retry back-off is linear, not exponential; 'dead' message visibility is silent</div>
+        <div class="finding-loc">packages/database/migrations/005_field_identity_and_customer_access.sql · finish_outbox_message · line 508</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>The retry formula is <code>least(attempts, 10) * 60 seconds</code>. After attempt 10, every subsequent retry is scheduled 10 minutes out, which means 12 total attempts span roughly 55 minutes. The 12-attempt ceiling and dead-letter state exist, but <em>there is no alerting, monitoring hook, or admin surface for dead messages</em>. Once an email hits 12 failures it silently disappears. The platform has no way to know (short of a raw DB query) that a customer never received their estimate link. At minimum, a <code>dead</code>-message count should surface in the health endpoint or a control-plane admin route.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-high">HIGH</span>
+      <div>
+        <div class="finding-title">provisionTenant: results indexing is fragile and breaks with optional Clerk block</div>
+        <div class="finding-loc">apps/control/src/lib/control-plane.ts · lines 173–179</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p><code>results[0]</code> and <code>results[1]</code> are assumed to be the organization and domain INSERT rows. But when <code>input.clerkOrganizationId</code> is present, a third statement is inserted at index 2 — shifting nothing (the org/domain are still 0 and 1). However the <code>configRow</code> search (line 179) uses <code>Array.find()</code> looking for a row with <code>row.version !== undefined</code>, which is safe. The concern is that if the provisioning statement order changes, the index 0/1 check on lines 176–177 will silently pass on the wrong result set. Destructuring by a named result or using <code>RETURNING</code> markers would be safer.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-high">HIGH</span>
+      <div>
+        <div class="finding-title">Estimate update: line pruning operates WITHOUT deleted-line guard for old positions</div>
+        <div class="finding-loc">apps/product/src/lib/estimates.ts · lines 377–384 (pruned CTE)</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>The <code>pruned</code> CTE deletes line items whose <code>position</code> is not in the new payload. The guard <code>AND EXISTS (SELECT 1 FROM updated)</code> prevents it from running if the header UPDATE matched zero rows (conflict). However, if a technician with <code>estimates.prepare</code> has the estimate open in two browser tabs and saves from both simultaneously, one save will match the header (correct), and the <em>other</em> will be a conflict (correct). The issue is that <code>pruned</code> operates directly on <code>estimate_id = $1</code>, not on the estimate's <code>organization_id</code>. The RLS policy ensures only the right tenant's rows are visible, so this is safe from cross-tenant leakage. But the CTE only guards on <code>EXISTS (SELECT 1 FROM updated)</code> — the DELETE for "orphaned" positions will match rows with <code>estimate_id = $1</code> without an additional <code>organization_id</code> filter. Under RLS (contractor_app) this is correct because the session is already scoped. The current design is safe but relies entirely on RLS rather than being self-evidently correct from the query alone.</p>
+    </div>
+  </div>
+
+  
+  <h2>🟡 Medium Severity</h2>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-medium">MEDIUM</span>
+      <div>
+        <div class="finding-title">packages/database/src/index.ts and packages/testing/src/index.ts are empty stubs</div>
+        <div class="finding-loc">packages/database/src/index.ts · packages/testing/src/index.ts</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>Both packages export only <code>export {};</code>. <code>@contractor-platform/database</code> has a rich set of migrations and helper scripts, but no TypeScript API surface — there is nothing to import when applications need to reference migration state or schema types. The <code>@contractor-platform/testing</code> package comment says "Shared fixtures and test helpers" but provides none. Any test that needs shared DB fixtures must either duplicate logic or use untyped scripts. These should either be filled or removed from the workspace to avoid misleading imports.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-medium">MEDIUM</span>
+      <div>
+        <div class="finding-title">Redis rate-limit window key arithmetic drops sub-second precision, causing thundering-herd at minute boundaries</div>
+        <div class="finding-loc">apps/product/src/lib/redis-rate-limit.ts · lines 36–37</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>The fixed-window key is <code>ratelimit:${key}:${Math.floor(nowSec / 60)}</code>. At the exact turn of every minute, all buckets simultaneously reset — a burst of 60 × capacity requests is possible in any 60-second span that spans a minute boundary (send &lt;capacity&gt; at 00:59, send capacity again at 01:00). The local fallback (<code>rate-limit.ts</code>) uses a token-bucket which avoids this. A sliding-window or token-bucket approach in Redis would be more robust for a login endpoint.</p>
+      <p>Also: <code>rateLimitWithFallback()</code> short-circuits on the Redis result — if Redis allows, local is never consulted. This means if Redis is configured but the TTL expires (e.g. Redis flushes), all limits reset globally. The fallback only applies when Redis is unconfigured, not when Redis grants access after a reset.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-medium">MEDIUM</span>
+      <div>
+        <div class="finding-title">signEstimate does not capture a snapshot hash until after a second getEstimate read</div>
+        <div class="finding-loc">apps/product/src/lib/estimates.ts · signEstimate function</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>The sign flow updates <code>estimates.status = 'signed'</code> with a <code>content_hash</code> in a single CTE. However the hash (sha256 over "the rendered document") is computed in the application layer. The "rendered document" used for hashing should be the same content displayed to the customer — but the customer sees the estimate data at the time the sign link was clicked. If the estimate was updated between link issuance and signing (edge case, but allowed in draft state), the hash covers the <em>new</em> content, not what the customer reviewed. The sign endpoint should either (a) lock the estimate row for the duration of the sign attempt or (b) include the estimate's <code>updated_at</code> in the content hash and validate it matches the grant's issuance time. Currently the sign invariant is enforced by the grant's single-use consumption, which is solid, but the content_hash's meaning is weaker than it appears.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-medium">MEDIUM</span>
+      <div>
+        <div class="finding-title">Control plane: no rate-limiting or authentication audit on /api/organizations GET</div>
+        <div class="finding-loc">apps/control/src/app/api/organizations/route.ts · line 44</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>GET returns all organizations (newest first, no pagination) for any bearer token. With a valid <code>CONTROL_API_TOKEN</code> this is intentional — but there is no rate-limiting, no pagination, and no access log. As tenant count grows this returns an unbounded result set in a single response. A <code>LIMIT</code> + cursor or page parameter is needed before the tenant list grows beyond a handful.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-medium">MEDIUM</span>
+      <div>
+        <div class="finding-title">secret-rotation.ts is unused infrastructure without a call site</div>
+        <div class="finding-loc">apps/product/src/lib/secret-rotation.ts</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p><code>getRotatingSecretConfig</code>, <code>rotateSecret</code>, <code>buildPreviousKeysJson</code>, etc. are fully implemented but no production code imports them. The actual CUSTOMER_LINK_SECRET rotation is handled inline in <code>customer-access-tokens.ts</code>, which has its own (different) previous-keys JSON parsing. Having two parallel rotation systems — one used, one not — is a maintenance hazard. Either connect <code>secret-rotation.ts</code> to <code>customer-access-tokens.ts</code> and auth, or delete it to prevent confusion.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-medium">MEDIUM</span>
+      <div>
+        <div class="finding-title">createEstimate: customer creation is not rolled back if estimate INSERT fails</div>
+        <div class="finding-loc">apps/product/src/app/api/field/estimates/route.ts · lines 150–154</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>The comment "Deliberately not rolled back" is present and the reasoning (an orphaned directory entry is harmless) is sound. However, the customer INSERT and the estimate INSERT run in separate <code>db()</code> calls inside <code>withFieldContext()</code>. Each <code>db()</code> call is its own transaction. This is a conscious design choice but it means a failed estimate create leaves an orphaned customer with no estimate, which shows up in the customer list. This can confuse a technician who sees a customer they just created but no associated estimate. At minimum, create the customer <em>only after</em> the estimate validation passes (it currently does — validation happens before the DB calls), but the customer create should be in the same transaction as the estimate create using <code>sql.transaction()</code>.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-medium">MEDIUM</span>
+      <div>
+        <div class="finding-title">proxy.ts references "Next 16" but Next 14/15 middleware uses middleware.ts, not proxy.ts</div>
+        <div class="finding-loc">apps/product/src/proxy.ts · line 8 comment</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>The comment says "Next 16 calls this file proxy.ts; middleware is deprecated." No current public release of Next.js (14 or 15) uses <code>proxy.ts</code>. Middleware is <code>middleware.ts</code> in Next.js 14/15. If this is anticipating a future API, the file must be renamed <code>middleware.ts</code> to actually be executed. As it currently stands, this file exports a <code>proxy</code> function and a <code>config</code> matcher — but since it's not named <code>middleware.ts</code>, Next.js ignores it entirely. The host-shape routing gate described in the comments is <strong>currently not running</strong>. Platform routes are unguarded by this logic.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-medium">MEDIUM</span>
+      <div>
+        <div class="finding-title">apps/product/src/lib/config.ts — referenced in the file tree but not read; content unknown</div>
+        <div class="finding-loc">apps/product/src/lib/config.ts</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>A <code>config.ts</code> exists in the lib directory alongside the exported configuration package. If it re-exports or supplements <code>@contractor-platform/configuration</code> this is fine, but if it contains environment variable defaults or feature flags it may shadow the package. Needs inspection to confirm no duplicate or conflicting config logic.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-medium">MEDIUM</span>
+      <div>
+        <div class="finding-title">allocate_document_number uses INSERT ON CONFLICT DO NOTHING followed by UPDATE — phantom row risk</div>
+        <div class="finding-loc">packages/database/migrations/001_foundation.sql · lines 251–261</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>The function does an INSERT (which may silently do nothing on conflict) and then an UPDATE with <code>RETURNING next_value - 1</code>. If two concurrent calls for the same (org, kind) pair race on the INSERT, both proceed to the UPDATE. The UPDATE takes a row lock so they serialize correctly. However, the initial INSERT ON CONFLICT DO NOTHING means a missed initial insert is silently swallowed, relying on the UPDATE to find the existing row. This is safe because the UPDATE will always find a row (either the one just inserted or a pre-existing one). However, the NULL check on <code>allocated</code> (line 262) can never actually fire — if the INSERT produced nothing and no row existed, the subsequent UPDATE returns nothing, and allocated stays NULL. The NULL RAISE is reachable only if the row disappeared between INSERT and UPDATE (extremely unlikely, but worth a comment). The UPSERT pattern (<code>INSERT ... ON CONFLICT DO UPDATE SET next_value = next_value + 1 RETURNING next_value - 1</code>) would be cleaner and atomic.</p>
+    </div>
+  </div>
+
+  
+  <h2>🟢 Low Severity</h2>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-low">LOW</span>
+      <div>
+        <div class="finding-title">content-length bypass: multipart requests without Content-Length header skip size check</div>
+        <div class="finding-loc">apps/product/src/app/api/field/estimates/route.ts · lines 91–94</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>The body-size check in the POST estimate route only fires when <code>content-length</code> is present (<code>if (contentLength &amp;&amp; ...)</code>). Chunked transfer-encoded requests carry no <code>Content-Length</code> header and skip the check entirely. An attacker can send an arbitrarily large body using chunked encoding. Next.js has a built-in 4 MB body size limit for JSON routes but that may not apply to all edge cases. The check should either parse and cap the stream, or rely on a platform-level limit declared in next.config.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-low">LOW</span>
+      <div>
+        <div class="finding-title">CSP: 'unsafe-inline' in script-src without nonces — reduces XSS protection</div>
+        <div class="finding-loc">apps/product/next.config.ts · line 15 · apps/control/next.config.ts · line 15</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>Both apps ship <code>script-src 'self' 'unsafe-inline'</code>. <code>'unsafe-inline'</code> allows any inline script to execute, negating most XSS protection. Next.js 14 supports nonce-based CSP via <code>next.config.ts</code> + middleware. Replacing <code>'unsafe-inline'</code> with a per-request nonce (or using <code>'strict-dynamic'</code>) would significantly harden both applications. The current production CSP is approximately as restrictive as no CSP for stored-XSS scenarios.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-low">LOW</span>
+      <div>
+        <div class="finding-title">formatCents in tenant.ts: negative cents produces incorrect output</div>
+        <div class="finding-loc">apps/product/src/lib/tenant.ts · lines 105–108</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p><code>formatCents(-150)</code> returns <code>$-1.50</code> (dollars = -1, centsRemainder = -50 → <code>%-50</code> with padStart). Negative cents should not appear in estimates (all amounts are <code>&gt;= 0</code>), but the function is a shared utility that may be called with line adjustments or refund amounts in the future. Add a guard or sign handling. Also: the remainder <code>cents % 100</code> is always 0..99 for positive inputs, but <code>Math.trunc</code> is not used for the dollars — for <code>cents = 199</code>, <code>Math.trunc(199/100) = 1</code>, remainder = 99. Correct for positive. Unclear for negative without <code>Math.trunc</code>.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-low">LOW</span>
+      <div>
+        <div class="finding-title">TOTP window parameter is passed as epoch tolerance, not window count</div>
+        <div class="finding-loc">apps/product/src/lib/mfa.ts · line 35</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p><code>verifySync({ token, secret, epochTolerance: TOTP_WINDOW * 30 })</code> passes <code>30</code> seconds as <code>epochTolerance</code>. <code>otplib</code>'s <code>epochTolerance</code> is measured in <em>seconds</em>, so this allows a ±30-second window, which is exactly ±1 TOTP period. The comment says "Allow ±1 window (30s each side)" — correct. However the <code>TOTP_WINDOW = 1</code> constant suggests it is a window count, not a seconds value. If anyone reads the constant as "number of windows" and changes it to <code>2</code>, the tolerance becomes ±60 seconds (2 windows), which is more than the RFC recommended 1-window tolerance but still manageable. The naming should be <code>TOTP_EPOCH_TOLERANCE_SECONDS = 30</code> or the code comment should explain the arithmetic explicitly to prevent a future bug.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-low">LOW</span>
+      <div>
+        <div class="finding-title">Outbox dispatch ignores finishOutboxMessage failure silently on success path</div>
+        <div class="finding-loc">apps/product/src/lib/outbox-dispatch.ts · lines 266–270</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>On successful delivery, the <code>await finishOutboxMessage(..., true, null)</code> call is wrapped in a try/catch that swallows all errors with the comment "Lease expiry will re-claim." This means the email was sent but the row stays as <code>claimed</code>. When the 5-minute lease expires, <code>claim_ready_outbox_messages</code> will re-claim and re-send the email. The comment is correct but this is a real double-delivery risk (not just theoretical) for any transient DB failure during the finish call. The finish call should be retried at least once before letting the lease handle it.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-low">LOW</span>
+      <div>
+        <div class="finding-title">PLATFORM_HOSTS set does not include localhost — classifyHost returns 'unknown' in dev</div>
+        <div class="finding-loc">apps/product/src/lib/host.ts · lines 15–20</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>In local development, the request host is <code>localhost:3000</code>. <code>hostnameOf('localhost:3000') = 'localhost'</code>, which is not in <code>PLATFORM_HOSTS</code> and does not match <code>.usejbox.com</code>, so <code>classifyHost</code> returns <code>'unknown'</code>. The proxy file (if/when it runs) would rewrite to <code>/platform</code>. But every route that calls <code>withTenant()</code> and checks <code>classifyHost(host) !== 'tenant'</code> will throw <code>TenantResolutionError('platform-host')</code> (actually <code>'no-host'</code> since the code maps anything non-'platform' to 'no-host'). Developers must set an explicit <code>*.usejbox.com</code> local domain or use <code>DEVELOPMENT_FIELD_ORGANIZATION_ID</code>. The README does not document this. Add <code>localhost</code> to <code>PLATFORM_HOSTS</code>, or document the required dev setup.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-low">LOW</span>
+      <div>
+        <div class="finding-title">HexColor type is string — no compile-time or runtime validation at assignment sites</div>
+        <div class="finding-loc">packages/configuration/src/config.ts · line 22</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p><code>export type HexColor = string</code> is a documentation alias with no enforcement. Validation only happens inside <code>validateConfigDocument()</code>. Internal code building a <code>BrandPalette</code> can compile with an invalid color. Branded types (<code>type HexColor = string &amp; { readonly _tag: 'HexColor' }</code>) with a <code>parseHexColor()</code> constructor would make invalid colors impossible to construct without going through the validator.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-low">LOW</span>
+      <div>
+        <div class="finding-title">slugify in onboarding.ts and packages/ai/src/index.ts are near-duplicates</div>
+        <div class="finding-loc">apps/product/src/lib/onboarding.ts · line 96 · packages/ai/src/index.ts · line 73</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>Both modules implement a <code>slugify</code> function. The onboarding version adds Unicode normalization (<code>NFKD + accent strip</code>) and falls back to <code>'tenant'</code>; the AI version falls back to <code>'service'</code> and has no Unicode normalization. Two diverging implementations of the same concept will produce different slugs for accented business names. Consolidate into a shared utility in <code>@contractor-platform/configuration</code> or a new <code>@contractor-platform/utils</code> package.</p>
+    </div>
+  </div>
+
+  
+  <h2>ℹ️ Info / Suggestions</h2>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-info">INFO</span>
+      <div>
+        <div class="finding-title">packages/domain: ModuleKey type is disconnected from capability enforcement</div>
+        <div class="finding-loc">packages/domain/src/index.ts</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>The four-gate entitlement model (subscription, feature purchase, owner activation, role capability) is clearly documented in the comment on <code>ModuleKey</code>. However, there is no runtime enforcement of gates 1–3 anywhere in the codebase — only gate 4 (role capability) is checked. The module entitlement system (<code>resolveModulePrerequisites</code>, <code>unsatisfiedPrerequisites</code>) has no call sites in the product app. Before <code>inventory</code> or <code>scheduling</code> are surfaced in the UI, the entitlement check path needs to exist.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-info">INFO</span>
+      <div>
+        <div class="finding-title">No CORS headers on any API route</div>
+        <div class="finding-loc">apps/product/src/lib/http.ts · apps/product/next.config.ts</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>The Field API and customer-facing estimate routes carry <code>Cache-Control: private, no-store</code> via <code>privateJson()</code> but no CORS headers. If a future mobile app or external client needs to call these APIs, every route will need CORS added. The global <code>headers()</code> in <code>next.config.ts</code> could add <code>Access-Control-Allow-Origin: none</code> as an explicit lock-down, making the intent clear and preventing accidental cross-origin access before CORS is intentionally opened.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-info">INFO</span>
+      <div>
+        <div class="finding-title">Migration checksum uses entire file; comment edits will invalidate applied migrations</div>
+        <div class="finding-loc">packages/database/src/migration-plan.mjs · checksumFor()</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>The SHA-256 checksum covers the full file source, including comments. Adding a clarifying comment to an already-applied migration will cause <code>migrate.mjs</code> to throw <code>"changed after it was applied."</code> This is stricter than necessary and will frustrate teams that annotate migrations post-hoc. A common alternative is to strip comments before hashing, or hash only the normalized SQL statements. The current design is documented nowhere as a gotcha for contributors.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-info">INFO</span>
+      <div>
+        <div class="finding-title">No structured logging — console.error on every 503 path loses request context</div>
+        <div class="finding-loc">apps/product/src/app/api/field/estimates/route.ts · lines 77, 169</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>Error paths use <code>console.error('Estimate list failed.', error)</code> with no request ID, tenant ID, or actor ID. The <code>requestId</code> is already available in the organization context store. Without structured logging, correlating a user-reported "estimates unavailable" with a log line in Fly/Vercel requires guessing time windows. At minimum, log the request ID and organization ID alongside every error before production launch.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-info">INFO</span>
+      <div>
+        <div class="finding-title">control-plane: getOrganizationReadiness mixes control_app reads with contractor_app reads in one transaction — possible SET LOCAL ROLE ordering issue</div>
+        <div class="finding-loc">apps/control/src/lib/control-plane.ts · getOrganizationReadiness · lines 213–253</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p>The function calls <code>provision([...statements])</code> which executes in a single transaction, switching roles via <code>SET LOCAL ROLE</code>. Statement order is: (1) control_app org query, (2) control_app <code>set_application_context</code>, (3) contractor_app config query, (4) contractor_app price book query. Step 2 switches to <code>control_app</code> and calls <code>set_application_context</code> but the role at that point is <code>control_app</code> not the login role — <code>set_application_context</code> is granted to PUBLIC so this executes. However, the organization context is set while still as <code>control_app</code>, and then used while as <code>contractor_app</code>. This works because <code>set_config</code> is session/transaction scoped, not role-scoped. It is correct but fragile — a reader must know <code>set_config</code> transcends roles. This should be documented in a comment.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-header">
+      <span class="badge badge-info">INFO</span>
+      <div>
+        <div class="finding-title">AI prompt uses `user` role only — no system message for instruction following</div>
+        <div class="finding-loc">packages/ai/src/index.ts · lines 195–196</div>
+      </div>
+    </div>
+    <div class="finding-body">
+      <p><code>buildPrompt()</code> returns the entire prompt as a single user message. Best practice for instruction-following models (including Llama 3.1 405B on NVIDIA) is to put the persona/task in a <code>system</code> message and the dynamic inputs in the <code>user</code> message. The current single-user-message approach works but is more susceptible to prompt injection via <code>input.notes</code> (a free-text field). Splitting into system + user and escaping the notes field (at minimum, stripping known jailbreak prefixes) would reduce prompt injection risk.</p>
+    </div>
+  </div>
+
+  
+  <h2>✅ Notable Strengths</h2>
+  <p>These are areas the codebase handles well and should be preserved as-is:</p>
+  <ul style="margin:8px 0 8px 20px;font-size:13px">
+    <li><strong>RLS isolation model</strong> — ENABLE + FORCE together on every tenant table, SECURITY DEFINER windows narrowly scoped, no BYPASSRLS anywhere. This is production-grade.</li>
+    <li><strong>Integer-cents money arithmetic</strong> — BigInt for all intermediate products, divRoundHalfUp for all divisions, millipercent for all rates. No floats in the pricing path. Excellent.</li>
+    <li><strong>Immutable estimate state machine</strong> — database-level triggers enforcing terminal-state lock plus the application-layer canTransition() guard is belt-and-suspenders done right.</li>
+    <li><strong>Transactional DDL migrations</strong> — each migration and its ledger entry in one transaction. Checksum guards prevent silent schema drift.</li>
+    <li><strong>JWT session revocation</strong> — per-jti field_sessions row; re-reads live membership on every request. Role changes propagate on the next request without waiting for token expiry.</li>
+    <li><strong>Configration versioning and approval gate</strong> — immutable config documents, assertApprovalReady() as a separate check from structural validation, AI copy isolated from branding/tax/pricing.</li>
+    <li><strong>Timing-safe comparisons</strong> — timingSafeEqual in cron-auth, customer-access-grants verification, and password verification. No timing oracle anywhere.</li>
+    <li><strong>AsyncLocalStorage for tenant context</strong> — avoids global mutable state, making concurrent request safety structural rather than a comment.</li>
+  </ul>
+
+  <footer>Made with IBM Bob</footer>
+</div>
+</body>
+</html>

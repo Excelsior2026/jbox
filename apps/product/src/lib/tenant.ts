@@ -103,7 +103,10 @@ export async function loadStorefront(): Promise<StorefrontData> {
 }
 
 export function formatCents(cents: number): string {
-  const dollars = Math.trunc(cents / 100);
-  const centsRemainder = cents % 100;
-  return `$${dollars.toLocaleString('en-US')}${centsRemainder ? `.${String(centsRemainder).padStart(2, '0')}` : ''}`;
+  if (!Number.isFinite(cents)) return '$0';
+  const sign = cents < 0 ? '-' : '';
+  const abs = Math.abs(Math.trunc(cents));
+  const dollars = Math.trunc(abs / 100);
+  const remainder = abs % 100;
+  return `${sign}$${dollars.toLocaleString('en-US')}${remainder ? `.${String(remainder).padStart(2, '0')}` : ''}`;
 }
