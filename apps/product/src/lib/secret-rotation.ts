@@ -98,9 +98,12 @@ export function buildPreviousKeysJson(config: RotatingSecretConfig): string {
   return JSON.stringify(previous);
 }
 
+export const DEFAULT_ROTATION_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 export function rotateSecret(
   config: RotatingSecretConfig,
   newVersion: string,
+  gracePeriodMs: number = DEFAULT_ROTATION_GRACE_PERIOD_MS,
 ): RotatingSecretConfig {
   const now = Date.now();
   const newSecret = generateSecretKey(newVersion);
@@ -109,7 +112,7 @@ export function rotateSecret(
     { version: newVersion, secret: newSecret, createdAt: now },
     ...config.versions.map((v) => ({
       ...v,
-      deprecatedAt: v.version === config.currentVersion ? now : v.deprecatedAt,
+      deprecatedAt: v.version === config.currentVersion ? now + gracePeriodMs : v.deprecatedAt,
     })),
   ];
 

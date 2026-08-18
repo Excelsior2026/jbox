@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
   try {
     const stripeCustomerId = await withFieldContext(principal, async () => {
       const rows = await platformDb().query(
-        `SELECT stripe_customer_id FROM organizations WHERE id = $1`,
+        `SELECT resolve_organization_stripe_customer($1) AS stripe_customer_id`,
         [principal.organizationId],
       );
       return (rows[0] as Record<string, unknown> | undefined)?.stripe_customer_id as string | null;

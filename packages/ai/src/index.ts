@@ -175,7 +175,7 @@ function buildPrompt(input: StorefrontDraftInput): string {
 export async function draftStorefrontCopy(
   input: StorefrontDraftInput,
 ): Promise<AiStorefrontDraft> {
-  const apiKey = process.env.NVIDIA_API_KEY;
+  const apiKey = process.env.NVIDIA_API_KEY || process.env.NVIDIA_KEY;
   if (!apiKey) {
     throw new AiError('NVIDIA_API_KEY is not set. The model cannot be called.');
   }

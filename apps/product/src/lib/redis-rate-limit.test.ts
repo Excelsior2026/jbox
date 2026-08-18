@@ -35,4 +35,27 @@ describe('redis-rate-limit fallback behavior', () => {
     const result = await distributedRateLimiter.check(key, options);
     expect(result).toBe(false);
   });
+
+  it('rateLimitWithFallback enforces Redis limit when Redis is configured', async () => {
+    process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.upstash.io';
+    process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-token';
+
+    const incrMock = vi.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(2).mockResolvedValueOnce(3);
+    const pexpireMock = vi.fn().mockResolvedValue(1);
+
+    vi.doMock('@upstash/redis', () => ({
+      Redis: class {
+        incr = incrMock;
+        pexpire = pexpireMock;
+      },
+    }));
+
+    const { rateLimitWithFallback } = await import('./redis-rate-limit');
+    const key = 'test-key-redis-1';
+    const options = { capacity: 2, refillPerMinute: 10 };
+
+    expect(await rateLimitWithFallback(key, options)).toBe(true);
+    expect(await rateLimitWithFallback(key, options)).toBe(true);
+    expect(await rateLimitWithFallback(key, options)).toBe(false);
+  });
 });

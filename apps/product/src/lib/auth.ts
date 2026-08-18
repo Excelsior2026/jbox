@@ -398,6 +398,27 @@ export async function listActiveMembershipsForEmail(
   }));
 }
 
+export async function verifyUserGlobalPassword(
+  email: string,
+  password: string,
+): Promise<{ ok: true; platformUserId: string } | { ok: false }> {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail || !password) return { ok: false };
+
+  const rows = (await platformDb().query(
+    'SELECT platform_user_id, password_hash FROM staff_user_credential_lookup($1::text)',
+    [normalizedEmail],
+  )) as Array<{ platform_user_id: string; password_hash: string | null }>;
+
+  const user = rows[0];
+  if (!user || !user.password_hash) return { ok: false };
+
+  const valid = await verifyPassword(password, user.password_hash);
+  if (!valid) return { ok: false };
+
+  return { ok: true, platformUserId: user.platform_user_id };
+}
+
 // ---------------------------------------------------------------------------
 // MFA Enrollment
 // ---------------------------------------------------------------------------
@@ -408,8 +429,7 @@ export type MfaSetupResult =
 
 /**
  * Initiates MFA enrollment for the current user. Returns a new TOTP secret
- * and otpauth:// URI for QR code generation. The secret is stored temporarily
- * and only activated after successful verification via completeMfaEnrollment().
+ * and otpauth:// URI for QR code generation.
  */
 export async function initiateMfaEnrollment(
   platformUserId: string,
@@ -418,10 +438,9 @@ export async function initiateMfaEnrollment(
   const secret = generateTotpSecret();
   const uri = getTotpUri(email, secret);
 
-  // Store the pending secret (not yet active)
   await platformDb().query(
-    `UPDATE platform_users SET totp_secret = $1 WHERE id = $2`,
-    [secret, platformUserId],
+    'SELECT staff_mfa_initiate($1::uuid, $2::text)',
+    [platformUserId, secret],
   );
 
   return { ok: true, value: { secret, uri } };
@@ -436,9 +455,10 @@ export async function completeMfaEnrollment(
   organizationId: string,
   totpToken: string,
 ): Promise<{ ok: boolean; reason?: string }> {
-  // Verify the TOTP token against the pending secret
   const userRows = (await platformDb().query(
-    `SELECT totp_secret FROM platform_users WHERE id = $1`,
+    `SELECT totp_secret FROM staff_user_credential_lookup(
+       (SELECT email FROM platform_users WHERE id = $1::uuid)
+     )`,
     [platformUserId],
   )) as Array<{ totp_secret: string | null }>;
   const user = userRows[0];
@@ -446,20 +466,10 @@ export async function completeMfaEnrollment(
     return { ok: false, reason: 'invalid-token' };
   }
 
-  // Activate MFA on the membership
-  const membershipRows = (await platformDb().query(
-    `UPDATE organization_memberships
-     SET mfa_required = true, updated_at = now()
-     WHERE platform_user_id = $1 AND organization_id = $2
-     RETURNING id`,
+  await platformDb().query(
+    'SELECT staff_mfa_complete($1::uuid, $2::uuid)',
     [platformUserId, organizationId],
-  )) as Array<{ id: string }>;
-  if (!membershipRows[0]) {
-    return { ok: false, reason: 'membership-not-found' };
-  }
-
-  // Revoke all existing sessions to force re-login with MFA
-  await revokeAllSessionsForStaff(platformUserId);
+  );
 
   return { ok: true };
 }
@@ -473,7 +483,9 @@ export async function disableMfa(
   totpToken: string,
 ): Promise<{ ok: boolean; reason?: string }> {
   const userRows = (await platformDb().query(
-    `SELECT totp_secret FROM platform_users WHERE id = $1`,
+    `SELECT totp_secret FROM staff_user_credential_lookup(
+       (SELECT email FROM platform_users WHERE id = $1::uuid)
+     )`,
     [platformUserId],
   )) as Array<{ totp_secret: string | null }>;
   const user = userRows[0];
@@ -481,20 +493,10 @@ export async function disableMfa(
     return { ok: false, reason: 'invalid-token' };
   }
 
-  // Clear the secret and disable MFA on membership
   await platformDb().query(
-    `UPDATE platform_users SET totp_secret = NULL WHERE id = $1`,
-    [platformUserId],
-  );
-  await platformDb().query(
-    `UPDATE organization_memberships
-     SET mfa_required = false, updated_at = now()
-     WHERE platform_user_id = $1 AND organization_id = $2`,
+    'SELECT staff_mfa_disable($1::uuid, $2::uuid)',
     [platformUserId, organizationId],
   );
-
-  // Revoke all sessions
-  await revokeAllSessionsForStaff(platformUserId);
 
   return { ok: true };
 }

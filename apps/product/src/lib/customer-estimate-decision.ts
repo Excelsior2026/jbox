@@ -58,7 +58,6 @@ export async function decideCustomerEstimate(
       || input.signerName.trim().length < MIN_SIGNER_NAME
       || input.signerName.trim().length > MAX_SIGNER_NAME
     ))
-    || (input.decision === 'declined' && input.affirmativeConsent)
   ) {
     return { ok: false, reason: 'invalid' };
   }

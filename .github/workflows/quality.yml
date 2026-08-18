@@ -27,7 +27,6 @@ jobs:
   # no manual flag to forget to turn on.
   isolation:
     runs-on: ubuntu-latest
-    if: ${{ secrets.VERIFY_DATABASE_URL_OWNER != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,7 +34,9 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: npm run db:verify
+      - name: Run DB isolation verification
+        if: env.DATABASE_URL_OWNER != ''
+        run: npm run db:verify
         env:
           # Owner credential for a DISPOSABLE branch. The checks write and then
           # roll back, so this must never point at production.

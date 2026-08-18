@@ -167,7 +167,7 @@ export async function linkEstimateToJob(
       ),
       job_logged AS (
         INSERT INTO job_events (organization_id, job_id, event, actor_id, meta)
-        SELECT id, 'estimate_linked', ${actorId},
+        SELECT app_require_organization_id(), id, 'estimate_linked', ${actorId},
                jsonb_build_object('estimate_id', ${estimateId}::text,
                                   'request_ip', ${ctx.ip}::text,
                                   'user_agent', ${ctx.userAgent}::text)

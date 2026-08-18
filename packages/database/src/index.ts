@@ -17,4 +17,4 @@
  * the expected schema version without keeping two hand-rolled strings in sync.
  * Update it whenever a new migration file is added to migrations/.
  */
-export const LATEST_MIGRATION = '014_platform_runtime_observability.sql';
+export const LATEST_MIGRATION = '015_outbox_reclaim_and_mfa_windows.sql';

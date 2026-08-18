@@ -1,8 +1,8 @@
-import type { NextRequest } from 'next/server';
 import {
   fieldSessionResponse,
   listActiveMembershipsForEmail,
   loginWithPassword,
+  verifyUserGlobalPassword,
 } from '@/lib/auth';
 import { privateJson } from '@/lib/http';
 import { getClientIp } from '@/lib/rate-limit';
@@ -20,11 +20,12 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
  *   - resolved from a verified tenant hostname, or
  *   - the caller's only active membership.
  *
- * When an email has several organizations and none was named, the route returns
- * 400 with the choices rather than guessing. All failures collapse to a single
- * 401 message so the endpoint cannot be used to enumerate accounts (SEC-09).
+ * When an email has several organizations and none was named, the password is
+ * verified first, and only upon valid credentials does the route return 400
+ * with the choices. All invalid credentials collapse to 401 so the endpoint
+ * cannot be used to enumerate accounts or tenant memberships (SEC-09).
  *
- * If MFA is required, returns 401 with { error: 'mfa-required', mfa: {...} }.
+ * If MFA is required, returns 401 with { error: 'mfa-required' }.
  * Client should then POST to this same endpoint with totpToken.
  */
 export async function POST(request: NextRequest) {
@@ -56,6 +57,12 @@ export async function POST(request: NextRequest) {
   let organizations: Array<{ organizationId: string; role: string }> | null = null;
 
   if (!organizationId) {
+    // Verify password globally before returning multi-tenant organization choices (SEC-09)
+    const validPassword = await verifyUserGlobalPassword(email, body.password);
+    if (!validPassword.ok) {
+      return privateJson({ error: 'invalid-credentials' }, 401);
+    }
+
     const memberships = await listActiveMembershipsForEmail(email);
     if (memberships.length === 1) {
       organizationId = memberships[0].organizationId;
@@ -81,7 +88,7 @@ export async function POST(request: NextRequest) {
   const result = await loginWithPassword({ email, password: body.password, organizationId, totpToken });
   if (!result.ok) {
     if (result.reason === 'mfa-required') {
-      return privateJson({ error: 'mfa-required', mfa: result.mfa }, 401);
+      return privateJson({ error: 'mfa-required' }, 401);
     }
     return privateJson({ error: result.reason }, 401);
   }

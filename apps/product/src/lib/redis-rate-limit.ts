@@ -57,8 +57,12 @@ export async function rateLimitWithFallback(
   key: string,
   options: RedisRateLimitOptions = {},
 ): Promise<boolean> {
-  if (await distributedRateLimiter.check(key, options)) {
-    return true;
+  if (isRedisRateLimitConfigured()) {
+    try {
+      return await redisRateLimit(key, options);
+    } catch (error) {
+      console.error('Distributed rate limiter error, falling back to local:', error);
+    }
   }
 
   const { rateLimit: localRateLimit } = await import('./rate-limit');

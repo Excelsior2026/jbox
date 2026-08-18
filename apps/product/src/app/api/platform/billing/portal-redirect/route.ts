@@ -34,7 +34,7 @@ async function handlePortalRedirect() {
 
   const stripeCustomerId = await withFieldContext(principal, async () => {
     const rows = await platformDb().query(
-      `SELECT stripe_customer_id FROM organizations WHERE id = $1`,
+      `SELECT resolve_organization_stripe_customer($1) AS stripe_customer_id`,
       [principal.organizationId],
     ) as Array<{ stripe_customer_id: string | null }>;
     return rows[0]?.stripe_customer_id ?? null;

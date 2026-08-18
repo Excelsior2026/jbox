@@ -2,6 +2,8 @@ import type { NextRequest } from 'next/server';
 import { headers } from 'next/headers';
 import { db } from '@/lib/db';
 import { classifyHost } from '@/lib/host';
+import { getClientIp } from '@/lib/rate-limit';
+import { rateLimitWithFallback } from '@/lib/redis-rate-limit';
 import { saveUpload } from '@/lib/storage';
 import { TenantResolutionError, loadInForceConfig, withTenant } from '@/lib/tenant';
 
@@ -46,7 +48,13 @@ export async function POST(request: NextRequest) {
     return json({ error: 'This storefront is not available.' }, 404);
   }
 
-  // --- Phase 2: parse body (now we know the host is a tenant shape) --------
+  // --- Phase 1.5: rate limit intake by IP (before consuming body) ----------
+  const ip = getClientIp(request);
+  if (!(await rateLimitWithFallback(`requests:${ip}`, { capacity: 15, refillPerMinute: 5 }))) {
+    return json({ error: 'Too many requests. Please try again later.' }, 429);
+  }
+
+  // --- Phase 2: parse body (now we know host and rate limit are good) -------
   let form: FormData;
   try {
     form = await request.formData();

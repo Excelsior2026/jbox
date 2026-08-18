@@ -184,7 +184,7 @@ export function fallbackStorefrontDraft(input: OnboardingDraftInput): AiStorefro
 export async function draftStorefrontFor(
   input: OnboardingDraftInput,
 ): Promise<{ draft: AiStorefrontDraft; source: 'ai' | 'fallback' }> {
-  if (process.env.NVIDIA_API_KEY) {
+  if (process.env.NVIDIA_API_KEY || process.env.NVIDIA_KEY) {
     try {
       return { draft: await draftStorefrontCopy(input), source: 'ai' };
     } catch {
