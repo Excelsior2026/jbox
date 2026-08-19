@@ -46,6 +46,7 @@ describe('derivePrefixes', () => {
       job: 'PEJ',
       invoice: 'PEI',
       receipt: 'PER',
+      changeOrder: 'PEO',
     });
     expect(derivePrefixes('Alpha Beta Gamma Delta')).toMatchObject({
       estimate: 'ABGE',

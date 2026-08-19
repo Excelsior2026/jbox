@@ -22,6 +22,7 @@ type InvoiceDetailProps = {
 const STATUS_CLASS: Record<InvoiceRecord['status'], string> = {
   draft: styles.statusDraft,
   issued: styles.statusSigned,
+  partially_paid: styles.statusSigned,
   paid: styles.statusSigned,
   cancelled: styles.statusDeclined,
 };

@@ -1,6 +1,6 @@
-export type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'cancelled';
+export type InvoiceStatus = 'draft' | 'issued' | 'partially_paid' | 'paid' | 'cancelled';
 
-export const INVOICE_STATUSES: readonly InvoiceStatus[] = ['draft', 'issued', 'paid', 'cancelled'];
+export const INVOICE_STATUSES: readonly InvoiceStatus[] = ['draft', 'issued', 'partially_paid', 'paid', 'cancelled'];
 
 export const INVOICE_LIMITS = {
   title: { min: 2, max: 200 },

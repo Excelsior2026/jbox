@@ -92,6 +92,7 @@ function mapInvoice(row: InvoiceRow): InvoiceRecord {
     surchargeCents: Number(row.surcharge_cents),
     taxRateMillipercent: row.tax_rate_millipercent as number,
     depositCents: Number(row.deposit_cents),
+    amountPaidCents: Number(row.amount_paid_cents),
     totals: totalsFor(row),
     moneyVersion: row.money_version as number,
     contentHash: (row.content_hash as string) ?? null,

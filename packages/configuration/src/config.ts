@@ -49,6 +49,7 @@ export type DocumentPrefixes = {
   job: string;
   invoice: string;
   receipt: string;
+  changeOrder: string;
 };
 
 export type ConfigV1 = {
@@ -93,6 +94,7 @@ export const DEFAULT_DOCUMENT_PREFIXES: DocumentPrefixes = {
   job: 'JOB',
   invoice: 'INV',
   receipt: 'RCT',
+  changeOrder: 'CO',
 };
 
 const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;

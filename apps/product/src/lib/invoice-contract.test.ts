@@ -7,7 +7,7 @@ import {
 
 describe('invoice-contract', () => {
   it('defines the jbox invoice statuses', () => {
-    expect(INVOICE_STATUSES).toEqual(['draft', 'issued', 'paid', 'cancelled']);
+    expect(INVOICE_STATUSES).toEqual(['draft', 'issued', 'partially_paid', 'paid', 'cancelled']);
   });
 
   it('keeps title and notes limits aligned with the invoices CHECKs', () => {

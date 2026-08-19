@@ -155,6 +155,7 @@ export function derivePrefixes(businessName: string): ConfigV1['documents']['pre
     job: `${base}J`,
     invoice: `${base}I`,
     receipt: `${base}R`,
+    changeOrder: `${base}O`,
   };
 }
 

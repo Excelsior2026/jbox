@@ -16,6 +16,7 @@ export type InvoiceRecord = {
   surchargeCents: number;
   taxRateMillipercent: number;
   depositCents: number;
+  amountPaidCents: number;
   totals: Totals;
   moneyVersion: number;
   contentHash: string | null;
