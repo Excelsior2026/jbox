@@ -3,18 +3,38 @@ import { JOB_LIMITS, validateJobInput } from '@/lib/job-contract';
 
 describe('validateJobInput', () => {
   it('accepts a valid job', () => {
-    const result = validateJobInput({ title: 'Panel replacement', notes: 'Third floor' });
+    const result = validateJobInput({
+      title: 'Panel replacement',
+      notes: 'Third floor',
+      customerStatedProblem: 'Lights flickering',
+      technicianDiagnosis: 'Loose neutral connection',
+    });
     expect(result).toEqual({
       ok: true,
-      value: { title: 'Panel replacement', notes: 'Third floor' },
+      value: {
+        title: 'Panel replacement',
+        notes: 'Third floor',
+        customerStatedProblem: 'Lights flickering',
+        technicianDiagnosis: 'Loose neutral connection',
+      },
     });
   });
 
   it('trims surrounding whitespace', () => {
-    const result = validateJobInput({ title: '  Rewire  ', notes: '  ' });
+    const result = validateJobInput({
+      title: '  Rewire  ',
+      notes: '  ',
+      customerStatedProblem: '  Outlet not working  ',
+      technicianDiagnosis: '  Tripped breaker  ',
+    });
     expect(result).toEqual({
       ok: true,
-      value: { title: 'Rewire', notes: '' },
+      value: {
+        title: 'Rewire',
+        notes: '',
+        customerStatedProblem: 'Outlet not working',
+        technicianDiagnosis: 'Tripped breaker',
+      },
     });
   });
 
@@ -68,8 +88,49 @@ describe('validateJobInput', () => {
   });
 
   it('allows a blank notes field', () => {
-    const result = validateJobInput({ title: 'Rewire', notes: '' });
+    const result = validateJobInput({
+      title: 'Rewire',
+      notes: '',
+      customerStatedProblem: '',
+      technicianDiagnosis: '',
+    });
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value.notes).toBe('');
+  });
+
+  it('allows blank customer stated problem and technician diagnosis', () => {
+    const result = validateJobInput({
+      title: 'Rewire',
+      notes: '',
+      customerStatedProblem: '',
+      technicianDiagnosis: '',
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.customerStatedProblem).toBe('');
+      expect(result.value.technicianDiagnosis).toBe('');
+    }
+  });
+
+  it('enforces the customer stated problem length limit', () => {
+    const result = validateJobInput({
+      title: 'Rewire',
+      notes: '',
+      customerStatedProblem: 'x'.repeat(JOB_LIMITS.customerStatedProblem.max + 1),
+      technicianDiagnosis: '',
+    });
+    expect(result.ok).toBe(false);
+    expect(result.ok ? null : result.field).toBe('customerStatedProblem');
+  });
+
+  it('enforces the technician diagnosis length limit', () => {
+    const result = validateJobInput({
+      title: 'Rewire',
+      notes: '',
+      customerStatedProblem: '',
+      technicianDiagnosis: 'x'.repeat(JOB_LIMITS.technicianDiagnosis.max + 1),
+    });
+    expect(result.ok).toBe(false);
+    expect(result.ok ? null : result.field).toBe('technicianDiagnosis');
   });
 });

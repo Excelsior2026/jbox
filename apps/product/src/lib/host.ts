@@ -47,5 +47,22 @@ export function classifyHost(host: string | null | undefined): HostKind {
   if (!host) return 'unknown';
   const hostname = hostnameOf(host);
   if (PLATFORM_HOSTS.has(hostname)) return 'platform';
-  return tenantSubdomainFromHost(host) ? 'tenant' : 'unknown';
+  // *.usejbox.com subdomains are always tenants (fast path, no DB needed)
+  if (tenantSubdomainFromHost(host)) return 'tenant';
+  // Custom domains need DB resolution — return 'unknown' and let withTenant()
+  // attempt resolution via resolve_verified_organization()
+  return 'unknown';
+}
+
+/**
+ * Returns true if the hostname could be a custom domain (not a platform host,
+ * not a *.usejbox.com subdomain). Used by withTenant() to attempt DB resolution.
+ */
+export function isPotentialCustomDomain(host: string | null | undefined): boolean {
+  if (!host) return false;
+  const hostname = hostnameOf(host);
+  if (PLATFORM_HOSTS.has(hostname)) return false;
+  if (hostname.endsWith(TENANT_DOMAIN)) return false;
+  // Must be a valid-looking hostname (has a dot, at least)
+  return hostname.includes('.');
 }

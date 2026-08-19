@@ -3,6 +3,7 @@ import 'server-only';
 import { db } from '@/lib/db';
 import type { JobStatus } from '@/lib/job-contract';
 import type { JobRecord } from '@/lib/job-record';
+import { requireOrganizationContext } from '@/lib/organization-context-store';
 
 export type { JobRecord } from '@/lib/job-record';
 
@@ -41,6 +42,8 @@ function mapJob(r: JobRow): JobRecord {
     status: r.status as JobStatus,
     title: r.title as string,
     notes: (r.notes as string) ?? '',
+    customerStatedProblem: (r.customer_stated_problem as string) ?? '',
+    technicianDiagnosis: (r.technician_diagnosis as string) ?? '',
     createdAt: timestampToken(r, 'created_at'),
     updatedAt: timestampToken(r, 'updated_at'),
   };
@@ -81,4 +84,42 @@ export async function listJobs(filter: JobListFilter = {}): Promise<JobRecord[]>
     [customerId, status, limit],
   )) as JobRow[];
   return rows.map(mapJob);
+}
+
+/**
+ * Creates an immutable snapshot of the job state at a key lifecycle point.
+ * This preserves the legal paper trail and ensures the original context
+ * of the call is never overwritten or lost.
+ */
+export async function createJobSnapshot(
+  jobId: string,
+  snapshotType: 'initial_request' | 'approved_estimate' | 'change_order' | 'final_invoice' | 'status_change',
+  referenceDocumentType: 'estimate' | 'invoice' | 'change_order' | null,
+  referenceDocumentId: string | null,
+  snapshotReason: string,
+  _ctx: JobEventContext,
+): Promise<string | null> {
+  const sql = db();
+  const actorId = requireOrganizationContext().actorId;
+  
+  const rows = (await sql.query(
+    `SELECT create_job_snapshot(
+      $1::uuid,
+      $2::text,
+      $3::text,
+      $4::uuid,
+      $5::text,
+      $6::uuid
+    ) AS snapshot_id`,
+    [
+      jobId,
+      snapshotType,
+      referenceDocumentType,
+      referenceDocumentId,
+      snapshotReason,
+      actorId,
+    ],
+  )) as Array<{ snapshot_id: string }>;
+  
+  return rows[0]?.snapshot_id ?? null;
 }

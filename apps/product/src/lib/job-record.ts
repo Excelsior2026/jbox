@@ -16,6 +16,16 @@ export type JobRecord = {
   status: JobStatus;
   title: string;
   notes: string;
+  
+  /**
+   * Customer intake context fields.
+   * These separate the "Customer's Stated Problem" from the "Technician's
+   * Actual Diagnosis" so the original context of the call is never
+   * overwritten or lost.
+   */
+  customerStatedProblem: string;
+  technicianDiagnosis: string;
+  
   createdAt: string;
   updatedAt: string;
 };

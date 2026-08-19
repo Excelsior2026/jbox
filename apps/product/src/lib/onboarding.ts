@@ -36,6 +36,12 @@ export type OnboardingDraftInput = {
   town: string;
   trade: string;
   notes?: string;
+  /**
+   * Services the business does NOT provide.
+   * Used to prevent the AI from generating descriptions that attract bad leads.
+   * Example: ["No commercial work", "No generator installs"]
+   */
+  excludedServices?: string[];
 };
 
 export type ProvisionContract = {
@@ -59,6 +65,11 @@ export type OnboardingSubmitInput = {
   templateId?: string;
   /** The copy the human confirmed on the preview step. Re-validated here. */
   draft: unknown;
+  /**
+   * Services the business does NOT provide.
+   * Used to prevent the AI from generating descriptions that attract bad leads.
+   */
+  excludedServices?: string[];
 };
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -90,6 +101,22 @@ function optionalString(value: unknown, path: string, maxLength: number): string
     throw new OnboardingError(`${path} must be at most ${maxLength} characters`);
   }
   return value.trim();
+}
+
+function optionalStringArray(value: unknown, path: string, maxLength: number, maxItems: number): string[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) {
+    throw new OnboardingError(`${path} must be an array of strings`);
+  }
+  const result: string[] = [];
+  for (const item of value.slice(0, maxItems)) {
+    if (typeof item !== 'string' || item.length > maxLength) {
+      continue;
+    }
+    const trimmed = item.trim();
+    if (trimmed) result.push(trimmed);
+  }
+  return result;
 }
 
 /** URL-safe slug from a business name; never empty. */
@@ -201,6 +228,7 @@ export function validateDraftInput(raw: unknown): OnboardingDraftInput {
     town: requiredString(raw.town, 'town', 100),
     trade: requiredString(raw.trade, 'trade', 80),
     notes: optionalString(raw.notes, 'notes', 2000),
+    excludedServices: optionalStringArray(raw.excludedServices, 'excludedServices', 200, 20),
   };
 }
 
@@ -240,6 +268,7 @@ export function validateSubmitInput(raw: unknown): OnboardingSubmitInput {
     taxRateMillipercent,
     templateId: templateId as string,
     draft: raw.draft,
+    excludedServices: optionalStringArray(raw.excludedServices, 'excludedServices', 200, 20),
   };
 }
 
@@ -295,6 +324,50 @@ export function buildProvisionContract(input: OnboardingSubmitInput): ProvisionC
     templateId: templateId as PublicSiteTemplateId,
     config: configBody,
   };
+}
+
+/**
+ * Calls the control plane to check if a slug is available. Used by the
+ * onboarding wizard to detect conflicts before the user submits.
+ */
+export async function checkSlugAvailability(
+  slug: string,
+): Promise<{ available: boolean; reason?: string }> {
+  const baseUrl = process.env.CONTROL_BASE_URL ?? 'https://jbox-control.vercel.app';
+  const token = process.env.CONTROL_API_TOKEN;
+  if (!token) {
+    return { available: false, reason: 'signups are not configured yet' };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `${baseUrl}/api/organizations/check?slug=${encodeURIComponent(slug)}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${token}`,
+        },
+        cache: 'no-store',
+      },
+    );
+  } catch {
+    return { available: false, reason: 'signup service is unreachable' };
+  }
+
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    return { available: false, reason: 'could not verify availability' };
+  }
+
+  if (isRecord(body) && typeof body.available === 'boolean') {
+    return {
+      available: body.available,
+      reason: typeof body.reason === 'string' ? body.reason : undefined,
+    };
+  }
+
+  return { available: false, reason: 'unexpected response from signup service' };
 }
 
 /**

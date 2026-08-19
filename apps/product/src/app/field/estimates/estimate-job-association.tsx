@@ -37,6 +37,8 @@ async function responsePayload(response: Response): Promise<ApiPayload> {
 const initialJobInput = (title: string): JobInput => ({
   title: title.trim() || 'Electrical service',
   notes: '',
+  customerStatedProblem: '',
+  technicianDiagnosis: '',
 });
 
 export default function EstimateJobAssociation({

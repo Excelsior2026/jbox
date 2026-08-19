@@ -35,6 +35,12 @@ export type StorefrontDraftInput = {
   town: string;
   trade: string;
   notes?: string;
+  /**
+   * Services the business does NOT provide.
+   * Used to prevent the AI from generating descriptions that attract bad leads.
+   * Example: ["No commercial work", "No generator installs"]
+   */
+  excludedServices?: string[];
 };
 
 export type AiServiceDraft = {
@@ -143,7 +149,7 @@ export function validateAiDraft(value: unknown): AiStorefrontDraft {
 }
 
 function buildPrompt(input: StorefrontDraftInput): string {
-  return [
+  const lines = [
     'You write website copy for local service businesses. Return ONLY a JSON object with this exact shape:',
     '{',
     '  "tagline": "one short sentence",',
@@ -160,11 +166,35 @@ function buildPrompt(input: StorefrontDraftInput): string {
     '- Do not invent a business history. If none is given, speak generally.',
     '- Write in clear English.',
     '',
+    'LIABILITY RULES (MUST FOLLOW):',
+    '- Do NOT make promises about response times (e.g., "within 1 hour", "same day").',
+    '- Do NOT guarantee specific outcomes (e.g., "we will fix it", "100% satisfaction").',
+    '- Do NOT claim warranties or guarantees unless explicitly stated by the business.',
+    '- Do NOT use phrases like "guaranteed", "warranty", "lifetime", "no matter what".',
+    '- Use neutral language like "we aim to", "typically", "in most cases".',
+    '',
+  ];
+
+  // Add negative constraints if provided
+  if (input.excludedServices && input.excludedServices.length > 0) {
+    lines.push('EXCLUDED SERVICES (DO NOT describe these):');
+    for (const excluded of input.excludedServices) {
+      lines.push(`- ${excluded}`);
+    }
+    lines.push('');
+  }
+
+  lines.push(
     `Business name: ${input.businessName}`,
     `Town served: ${input.town}`,
     `Trade: ${input.trade}`,
-    input.notes ? `Additional context: ${input.notes}` : '',
-  ].filter((line) => line.length > 0).join('\n');
+  );
+
+  if (input.notes) {
+    lines.push(`Additional context: ${input.notes}`);
+  }
+
+  return lines.join('\n');
 }
 
 /**

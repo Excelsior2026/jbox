@@ -3,14 +3,14 @@ import 'server-only';
 import { headers } from 'next/headers';
 import { validateConfigDocument, type ConfigV1 } from '@contractor-platform/configuration';
 import { db, platformDb } from '@/lib/db';
-import { classifyHost, hostnameOf, tenantSubdomainFromHost } from '@/lib/host';
+import { classifyHost, hostnameOf, isPotentialCustomDomain, tenantSubdomainFromHost } from '@/lib/host';
 import { runWithOrganizationContext } from '@/lib/organization-context-store';
 
 /**
  * Hostname is the tenant boundary (foundation-decisions.md). A request arrives
- * at the product app on a `*.usejbox.com` subdomain; the subdomain resolves to
- * an organization through resolve_verified_organization(), and every tenant
- * query for that request runs inside runWithOrganizationContext().
+ * at the product app on a `*.usejbox.com` subdomain or a custom domain; the
+ * hostname resolves to an organization through resolve_verified_organization(),
+ * and every tenant query for that request runs inside runWithOrganizationContext().
  *
  * Every other hostname is the platform shell: the apex domain, the Field sign-in
  * host, and any deployment hostname. It carries no tenant data.
@@ -27,26 +27,41 @@ export class TenantResolutionError extends Error {
 
 export type TenantContext = {
   organizationId: string;
-  subdomain: string;
+  subdomain: string | null;
   hostname: string;
+  isCustomDomain: boolean;
 };
 
 /**
  * Resolves the request's tenant and runs `work` inside that tenant's async
  * context. Fails closed: a hostname that is not a verified, active tenant
  * throws before any tenant query runs.
+ *
+ * Supports both *.usejbox.com subdomains (fast path, no DB needed for
+ * classification) and custom domains (requires DB resolution).
  */
 export async function withTenant<T>(work: (tenant: TenantContext) => Promise<T>): Promise<T> {
   const host = (await headers()).get('host') ?? '';
   const kind = classifyHost(host);
-  if (kind !== 'tenant') {
-    throw new TenantResolutionError(kind === 'platform' ? 'platform-host' : 'no-host');
+  const hostname = hostnameOf(host);
+
+  // Platform hosts are never tenants
+  if (kind === 'platform') {
+    throw new TenantResolutionError('platform-host');
   }
-  const subdomain = tenantSubdomainFromHost(host)!;
+
+  // Try to get the subdomain for *.usejbox.com hosts
+  const subdomain = tenantSubdomainFromHost(host);
+  const isCustomDomain = !subdomain && isPotentialCustomDomain(host);
+
+  // For unknown hosts, only proceed if it looks like a custom domain
+  if (kind === 'unknown' && !isCustomDomain) {
+    throw new TenantResolutionError('no-host');
+  }
 
   const rows = await platformDb().query(
     'SELECT resolve_verified_organization($1) AS organization_id',
-    [hostnameOf(host)],
+    [hostname],
   );
   const organizationId = rows[0]?.organization_id;
   if (typeof organizationId !== 'string') {
@@ -59,7 +74,7 @@ export async function withTenant<T>(work: (tenant: TenantContext) => Promise<T>)
       actorId: null,
       requestId: crypto.randomUUID(),
     },
-    () => work({ organizationId, subdomain, hostname: hostnameOf(host) }),
+    () => work({ organizationId, subdomain, hostname, isCustomDomain }),
   );
 }
 
