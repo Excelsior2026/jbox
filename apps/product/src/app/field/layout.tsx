@@ -124,6 +124,7 @@ export default async function FieldLayout({ children }: Readonly<{ children: Rea
             <Link className={styles.navLink} href="/field/customers">Customers</Link>
             <Link className={styles.navLink} href="/field/estimates">Estimates</Link>
             <Link className={styles.navLink} href="/field/invoices">Invoices</Link>
+            <Link className={styles.navLink} href="/field/storefront">Storefront</Link>
             {principal.role === 'owner' && (
               <Link className={styles.navLink} href="/field/settings/domains">Domains</Link>
             )}

@@ -1,0 +1,181 @@
+.trackPage {
+  min-height: 100vh;
+  background: #f9fafb;
+  padding: 40px 24px;
+}
+
+.trackContainer {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.trackHeader {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.trackHeader h1 {
+  font-family: var(--display-font);
+  font-size: 2rem;
+  margin: 0 0 8px;
+  color: var(--text);
+}
+
+.trackHeader p {
+  color: var(--muted);
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.trackForm {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 32px;
+}
+
+.trackInput {
+  padding: 12px 16px;
+  font-size: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  width: 300px;
+  max-width: 100%;
+}
+
+.trackInput:focus {
+  outline: 2px solid var(--brand-accent);
+  outline-offset: -1px;
+}
+
+.trackButton {
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-weight: 700;
+  background: var(--brand-accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.trackButton:hover {
+  opacity: 0.92;
+}
+
+.trackButtonSecondary {
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-weight: 700;
+  background: transparent;
+  color: var(--brand-accent);
+  border: 1px solid var(--brand-accent);
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.trackButtonSecondary:hover {
+  background: #f3f4f6;
+}
+
+.documentGrid {
+  display: grid;
+  gap: 16px;
+}
+
+.documentCard {
+  display: block;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.documentCard:hover {
+  border-color: var(--brand-accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.documentHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.documentType {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.documentId {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-family: monospace;
+}
+
+.documentTitle {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.documentMeta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.documentDate {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.documentTotal {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.trackFooter {
+  text-align: center;
+  margin-top: 32px;
+}
+
+@media (max-width: 640px) {
+  .trackPage {
+    padding: 24px 16px;
+  }
+
+  .trackForm {
+    flex-direction: column;
+  }
+
+  .trackInput {
+    width: 100%;
+  }
+}
