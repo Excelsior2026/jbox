@@ -4,6 +4,7 @@ import { getFieldPrincipal } from '@/lib/field-api-auth';
 import { isFieldAuthConfigured } from '@/lib/identity-environment';
 import { ROLE_LABELS } from '@/lib/identity';
 import { platformDb, isDatabaseConfigured } from '@/lib/db';
+import { MobileMenuButton } from './mobile-menu-button';
 import styles from './field.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -116,6 +117,7 @@ export default async function FieldLayout({ children }: Readonly<{ children: Rea
       )}
       <header className={styles.header}>
         <div className={styles.headerInner}>
+          <MobileMenuButton />
           <Link className={styles.brand} href="/field">J-Box Field</Link>
           <nav className={styles.nav} aria-label="Field workspace">
             <Link className={styles.navLink} href="/field">Dashboard</Link>

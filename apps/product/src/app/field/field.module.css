@@ -3409,4 +3409,171 @@
   font-size: 11px;
 }
 
+/* --- Mobile Navigation ---------------------------------------------------- */
+
+.hamburger {
+  display: none;
+  background: transparent;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.hamburger:hover {
+  background: #f3f4f6;
+  border-radius: var(--radius);
+}
+
+/* --- Status Footer -------------------------------------------------------- */
+
+.statusFooter {
+  position: sticky;
+  bottom: 0;
+  background: var(--brand-surface);
+  border-top: 1px solid var(--line);
+  padding: 12px 24px;
+  z-index: 10;
+}
+
+.statusFooterInner {
+  max-width: 1180px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.statusFooterBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.statusDotDraft {
+  background: #3b82f6;
+}
+
+.statusDotIssued {
+  background: #10b981;
+}
+
+.statusDotPartiallyPaid {
+  background: #f59e0b;
+}
+
+.statusDotPaid {
+  background: #059669;
+}
+
+.statusDotCancelled {
+  background: #ef4444;
+}
+
+.statusDotApproved {
+  background: #059669;
+}
+
+.statusDotRejected {
+  background: #ef4444;
+}
+
+.statusDotPendingApproval {
+  background: #f59e0b;
+}
+
+.statusFooterActions {
+  display: flex;
+  gap: 8px;
+}
+
+/* --- Responsive Mobile Styles --------------------------------------------- */
+
+@media (max-width: 768px) {
+  .headerInner {
+    flex-wrap: wrap;
+    padding: 10px 16px;
+  }
+
+  .hamburger {
+    display: block;
+    order: 1;
+  }
+
+  .brand {
+    order: 2;
+  }
+
+  .nav {
+    display: none;
+    order: 4;
+    width: 100%;
+    flex-direction: column;
+    padding: 8px 0;
+    border-top: 1px solid var(--line);
+    gap: 2px;
+  }
+
+  .nav.open {
+    display: flex;
+  }
+
+  .navLink {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 0;
+  }
+
+  .navLink:hover {
+    background: #f3f4f6;
+  }
+
+  .headerActions {
+    order: 3;
+    margin-left: auto;
+    font-size: 0.78rem;
+  }
+
+  .content {
+    padding: 20px 16px 40px;
+  }
+
+  .pageHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .pageHeader .actionBar {
+    width: 100%;
+  }
+
+  .statusFooterInner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .statusFooterActions {
+    width: 100%;
+  }
+
+  .statusFooterActions button,
+  .statusFooterActions a {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
 

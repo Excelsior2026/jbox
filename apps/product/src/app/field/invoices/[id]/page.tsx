@@ -9,7 +9,7 @@ import { isDatabaseConfigured } from '@/lib/db';
 import { UUID_PATTERN } from '@/lib/ids';
 import { getInvoice, getInvoiceLines, type InvoiceLineRecord } from '@/lib/invoices';
 import type { InvoiceRecord } from '@/lib/invoice-record';
-import { invoiceStatusLabel } from '@/lib/invoice-contract';
+import { invoiceStatusLabel, invoiceStatusColor } from '@/lib/invoice-contract';
 import { dateTime, money, quantity } from '../../format';
 import styles from '../../field.module.css';
 
@@ -19,13 +19,20 @@ type InvoiceDetailProps = {
   params: Promise<{ id: string }>;
 };
 
-const STATUS_CLASS: Record<InvoiceRecord['status'], string> = {
-  draft: styles.statusDraft,
-  issued: styles.statusSigned,
-  partially_paid: styles.statusSigned,
-  paid: styles.statusSigned,
-  cancelled: styles.statusDeclined,
-};
+function StatusBadge({ status }: { status: InvoiceRecord['status'] }) {
+  const colors = invoiceStatusColor(status);
+  return (
+    <span
+      className={styles.badge}
+      style={{
+        background: colors.background,
+        color: colors.text,
+      }}
+    >
+      {invoiceStatusLabel(status)}
+    </span>
+  );
+}
 
 function LineRows({ lines }: { lines: InvoiceLineRecord[] }) {
   if (!lines.length) {
@@ -71,9 +78,7 @@ export default async function InvoiceDetail({ params }: InvoiceDetailProps) {
           <p className={styles.eyebrow}>{invoice.displayId}</p>
           <h1 className={styles.pageTitle}>{invoice.title}</h1>
           <p className={styles.subtitle}>
-            <span className={`${styles.badge} ${STATUS_CLASS[invoice.status]}`}>
-              {invoiceStatusLabel(invoice.status)}
-            </span>
+            <StatusBadge status={invoice.status} />
             <span>{invoice.customerName}</span>
             {invoice.dueAt && <span>Due {dateTime(invoice.dueAt)}</span>}
           </p>
