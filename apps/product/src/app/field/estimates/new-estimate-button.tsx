@@ -32,7 +32,7 @@ async function responsePayload<T>(response: Response): Promise<T & ApiError> {
 }
 
 export default function NewEstimateButton({
-  label = 'New estimate',
+  label = '+ Build New Bid',
   variant = 'primary',
 }: {
   label?: string;

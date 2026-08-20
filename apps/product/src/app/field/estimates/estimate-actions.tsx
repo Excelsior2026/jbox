@@ -66,7 +66,7 @@ export function EstimateActions({ estimate, canPrepare, canApprove, canSend }: E
       }
       setSigning(false);
       setSignerName('');
-      setNotice({ kind: 'ok', message: `Signed. ${estimate.displayId} is now a binding published estimate.` });
+      setNotice({ kind: 'ok', message: `Signed. ${estimate.displayId} is now an approved bid.` });
       router.refresh();
     } catch (caught) {
       setNotice({ kind: 'error', message: caught instanceof Error ? caught.message : 'Signing failed.' });
@@ -77,7 +77,7 @@ export function EstimateActions({ estimate, canPrepare, canApprove, canSend }: E
 
   async function decline() {
     if (busy) return;
-    if (!window.confirm(`Decline ${estimate.displayId}? This is final for this estimate; revise by duplicating it.`)) {
+    if (!window.confirm(`Decline ${estimate.displayId}? This is final for this bid; revise by duplicating it.`)) {
       return;
     }
     setBusy('decline');
@@ -187,7 +187,7 @@ export function EstimateActions({ estimate, canPrepare, canApprove, canSend }: E
           type="button"
           onClick={sendToCustomer}
         >
-          {busy === 'deliver' ? 'Sending…' : 'Send to customer'}
+          {busy === 'deliver' ? 'Sending…' : 'Send Bid to Client for Approval'}
         </button>
       )}
       {delivered && isDraft && canSend && (
@@ -228,7 +228,7 @@ export function EstimateActions({ estimate, canPrepare, canApprove, canSend }: E
             type="button"
             onClick={sign}
           >
-            {busy === 'sign' ? 'Signing…' : 'Confirm sign'}
+            {busy === 'sign' ? 'Signing…' : 'Approve & Sign Bid'}
           </button>
           <button
             className={styles.buttonGhost}
@@ -259,8 +259,20 @@ export function EstimateActions({ estimate, canPrepare, canApprove, canSend }: E
           type="button"
           onClick={duplicate}
         >
-          {busy === 'duplicate' ? 'Duplicating…' : 'Duplicate'}
+          {busy === 'duplicate' ? 'Duplicating…' : 'Duplicate Bid'}
         </button>
+      )}
+
+      {!isDraft && canPrepare && estimate.status === 'signed' && (
+        <Link className={styles.button} href={`/field/jobs/new?estimateId=${estimate.id}`}>
+          Convert Approved Bid to Work Order
+        </Link>
+      )}
+
+      {!isDraft && canPrepare && estimate.status === 'signed' && (
+        <Link className={styles.buttonGhost} href={`/field/estimates/${estimate.id}/change-order`}>
+          Issue Change Order for Scope Variance
+        </Link>
       )}
 
       {notice && (

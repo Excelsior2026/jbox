@@ -11,7 +11,32 @@ const STEPS = [
 ] as const;
 
 export default function DispatchTrackPage() {
-  const [activeStep] = useState(0);
+  const [ticketInput, setTicketInput] = useState('');
+  const [activeStep, setActiveStep] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function lookup() {
+    const ticket = ticketInput.trim();
+    if (!ticket) return;
+    setLoading(true);
+    setError(null);
+    setActiveStep(null);
+
+    try {
+      const res = await fetch(`/api/dispatch/track?ticket=${encodeURIComponent(ticket)}`);
+      const body = await res.json();
+      if (!res.ok || !body.ok) {
+        setError(body.error ?? 'Ticket not found.');
+        return;
+      }
+      setActiveStep(body.activeStep ?? 0);
+    } catch {
+      setError('Could not reach dispatch. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <section className="dispatch-tracker">
@@ -22,41 +47,57 @@ export default function DispatchTrackPage() {
           type="text"
           placeholder="Enter job ticket number..."
           aria-label="Job ticket number"
+          value={ticketInput}
+          onChange={(e) => setTicketInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && lookup()}
         />
-        <button type="button" className="dispatch-btn dispatch-btn-primary">
-          Look Up
+        <button
+          type="button"
+          className="dispatch-btn dispatch-btn-primary"
+          onClick={lookup}
+          disabled={loading}
+        >
+          {loading ? 'Looking...' : 'Look Up'}
         </button>
       </div>
 
-      <div className="dispatch-stepper">
-        {STEPS.map((step, i) => {
-          const isCompleted = i < activeStep;
-          const isActive = i === activeStep;
-          const isLast = i === STEPS.length - 1;
+      {error && (
+        <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', borderRadius: '6px', padding: '12px', marginBottom: '24px', color: '#fca5a5', fontSize: '13px' }}>
+          {error}
+        </div>
+      )}
 
-          return (
-            <div className="dispatch-step" key={step}>
-              <div className="dispatch-step-indicator">
-                <div
-                  className={`dispatch-step-dot${isCompleted ? ' completed' : ''}${isActive ? ' active' : ''}`}
-                />
-                {!isLast && (
+      {activeStep !== null && (
+        <div className="dispatch-stepper">
+          {STEPS.map((step, i) => {
+            const isCompleted = i < activeStep;
+            const isActive = i === activeStep;
+            const isLast = i === STEPS.length - 1;
+
+            return (
+              <div className="dispatch-step" key={step}>
+                <div className="dispatch-step-indicator">
                   <div
-                    className={`dispatch-step-line${isCompleted ? ' completed' : ''}`}
+                    className={`dispatch-step-dot${isCompleted ? ' completed' : ''}${isActive ? ' active' : ''}`}
                   />
-                )}
-              </div>
-              <div className="dispatch-step-content">
-                <div
-                  className={`dispatch-step-label${isCompleted ? ' completed' : ''}${isActive ? ' active' : ''}`}
-                >
-                  {step}
+                  {!isLast && (
+                    <div
+                      className={`dispatch-step-line${isCompleted ? ' completed' : ''}`}
+                    />
+                  )}
+                </div>
+                <div className="dispatch-step-content">
+                  <div
+                    className={`dispatch-step-label${isCompleted ? ' completed' : ''}${isActive ? ' active' : ''}`}
+                  >
+                    {step}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }

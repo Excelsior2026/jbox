@@ -123,11 +123,24 @@ export default function SketchPage() {
     }
   }, []);
 
-  const handleSaveAndSync = useCallback(() => {
-    alert(
-      `Save & Sync to Bid\n\nEstimate: ${estimateId}\nElements: ${placedElements.length}\nTotal: ${formatCurrency(totalCents)}\n\n(Save logic stubbed — not yet implemented)`
-    );
-  }, [estimateId, placedElements.length, totalCents]);
+  const handleSaveAndSync = useCallback(async () => {
+    if (placedElements.length === 0) return;
+    try {
+      const res = await fetch('/api/field/sketch/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estimateId, elements: placedElements }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.error ?? 'Failed to save takeoff.');
+        return;
+      }
+      alert(`Saved! ${data.elementCount} elements synced to bid. Total: $${(data.totalCents / 100).toFixed(2)}`);
+    } catch {
+      alert('Could not save takeoff. Please try again.');
+    }
+  }, [estimateId, placedElements]);
 
   if (loading) {
     return (
