@@ -1,8 +1,8 @@
 import type { EstimateStatus } from '@/lib/estimate-contract';
 
 export const STATUS_LABELS: Record<EstimateStatus, string> = {
-  draft: 'Draft',
-  signed: 'Signed',
+  draft: 'Drafting',
+  signed: 'Approved / Signed',
   declined: 'Declined',
 };
 

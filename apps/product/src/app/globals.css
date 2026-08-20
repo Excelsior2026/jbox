@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Barlow+Condensed:wght@600;700;800&display=swap');
+
 /*
  * Storefront theming.
  *
@@ -9,19 +11,21 @@
  */
 
 :root {
-  --brand-primary: #111827;
-  --brand-accent: #2563eb;
-  --brand-surface: #ffffff;
-  --text: #111827;
-  --muted: #6b7280;
-  --line: #e5e7eb;
-  --display-font: Georgia, 'Times New Roman', serif;
-  --body-font: system-ui, -apple-system, sans-serif;
-  --radius: 6px;
+  --brand-primary: #1E293B;
+  --brand-accent: #F59E0B;
+  --brand-surface: #FFFFFF;
+  --text: #0F172A;
+  --muted: #64748B;
+  --line: #CBD5E1;
+  --display-font: 'Inter', 'Barlow Condensed', system-ui, -apple-system, sans-serif;
+  --body-font: 'Inter', system-ui, -apple-system, sans-serif;
+  --mono-font: 'JetBrains Mono', 'Roboto Mono', monospace;
+  --radius: 4px;
   --shell-max: 1080px;
+  --border-thick: 3px;
 }
 
-* { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; }
 
 html, body { margin: 0; padding: 0; }
 
@@ -30,6 +34,11 @@ body {
   color: var(--text);
   background: var(--brand-surface);
   line-height: 1.55;
+}
+
+.mono, .amount, [data-mono] {
+  font-family: var(--mono-font);
+  font-variant-numeric: tabular-nums;
 }
 
 a { color: var(--brand-accent); }
@@ -58,9 +67,11 @@ a { color: var(--brand-accent); }
 }
 
 .tpl-industrial-pro {
-  --display-font: 'Arial Narrow', 'Franklin Gothic Medium', Arial, sans-serif;
+  --display-font: 'Barlow Condensed', 'Arial Narrow', 'Franklin Gothic Medium', Arial, sans-serif;
+  --body-font: 'Inter', system-ui, -apple-system, sans-serif;
   --radius: 0px;
   --hero-invert: true;
+  --border-thick: 4px;
 }
 
 .tpl-premium-home {
@@ -113,20 +124,37 @@ a { color: var(--brand-accent); }
 .button {
   display: inline-block;
   background: var(--brand-accent);
-  color: #ffffff;
-  padding: 12px 20px;
+  color: #0F172A;
+  padding: 12px 24px;
   border-radius: var(--radius);
   text-decoration: none;
   font-weight: 700;
-  border: none;
-  cursor: pointer;
   font-size: 1rem;
+  border: 3px solid var(--brand-accent);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 0 0 rgba(0,0,0,0.15);
+}
+
+.button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 0 0 rgba(0,0,0,0.15);
+}
+
+.button:active {
+  transform: translateY(1px);
+  box-shadow: 0 0px 0 0 rgba(0,0,0,0.15);
 }
 
 .button.secondary {
   background: transparent;
   color: var(--brand-accent);
-  border: 1px solid var(--brand-accent);
+  border-color: var(--brand-accent);
+}
+
+.button.secondary:hover {
+  background: var(--brand-accent);
+  color: #0F172A;
 }
 
 /* --- Hero ---------------------------------------------------------------- */

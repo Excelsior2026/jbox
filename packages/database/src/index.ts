@@ -17,4 +17,4 @@
  * the expected schema version without keeping two hand-rolled strings in sync.
  * Update it whenever a new migration file is added to migrations/.
  */
-export const LATEST_MIGRATION = '017_payment_idempotency_change_orders.sql';
+export const LATEST_MIGRATION = '018_trade_sketch_symbols.sql';

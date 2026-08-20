@@ -166,6 +166,47 @@
   margin-top: 32px;
 }
 
+.statusStepper {
+  display: flex;
+  gap: 4px;
+  margin: 24px 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.stepItem {
+  flex: 1;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  position: relative;
+  z-index: 2;
+}
+
+.stepNumber {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  margin: 0 auto 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.stepConnector {
+  flex: 1;
+  height: 12px;
+  background: var(--line);
+  margin: auto 0;
+}
+
 @media (max-width: 640px) {
   .trackPage {
     padding: 24px 16px;
@@ -177,5 +218,33 @@
 
   .trackInput {
     width: 100%;
+  }
+
+  .statusStepper {
+    flex-direction: column;
+    gap: 8px;
+    border-top: none;
+    border-bottom: none;
+    padding: 0;
+  }
+
+  .stepConnector {
+    height: 2px;
+    background: var(--line);
+    margin: 4px 0;
+  }
+
+  .stepItem {
+    flex: none;
+    width: 100%;
+    text-align: left;
+    padding-left: 28px;
+  }
+
+  .stepNumber {
+    position: absolute;
+    left: 0;
+    top: 0;
+    margin: 0 4px 0 0;
   }
 }

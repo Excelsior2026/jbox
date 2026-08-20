@@ -103,12 +103,12 @@ export default async function EstimateDetail({ params }: EstimateDetailProps) {
           )}
 
           <div>
-            <p className={styles.eyebrow}>Pricing</p>
+            <p className={styles.eyebrow}>Scope of Work & Fixed Estimate</p>
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>Item</th>
+                    <th>Labor & Field Operations</th>
                     <th className={styles.amount}>Qty</th>
                     <th className={styles.amount}>Unit price</th>
                     <th className={styles.amount}>Line total</th>

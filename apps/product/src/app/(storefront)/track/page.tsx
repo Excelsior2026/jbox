@@ -4,6 +4,37 @@ import { db, isDatabaseConfigured } from '@/lib/db';
 import { withTenant } from '@/lib/tenant';
 import styles from './track.module.css';
 
+function StatusStepper() {
+  return (
+    <div className={styles.statusStepper}>
+      <div className={styles.stepItem}>
+        <span className={styles.stepNumber}>1</span>
+        <span className={styles.stepLabel}>Request Received</span>
+      </div>
+      <div className={styles.stepConnector} />
+      <div className={styles.stepItem}>
+        <span className={styles.stepNumber}>2</span>
+        <span className={styles.stepLabel}>Estimate Dispatched</span>
+      </div>
+      <div className={styles.stepConnector} />
+      <div className={styles.stepItem}>
+        <span className={styles.stepNumber}>3</span>
+        <span className={styles.stepLabel}>Work Approved</span>
+      </div>
+      <div className={styles.stepConnector} />
+      <div className={styles.stepItem}>
+        <span className={styles.stepNumber}>4</span>
+        <span className={styles.stepLabel}>Tech En Route</span>
+      </div>
+      <div className={styles.stepConnector} />
+      <div className={styles.stepItem}>
+        <span className={styles.stepNumber}>5</span>
+        <span className={styles.stepLabel}>Job Completed & Paid</span>
+      </div>
+    </div>
+  );
+}
+
 export const dynamic = 'force-dynamic';
 
 type TrackPageProps = {
@@ -97,9 +128,10 @@ export default async function TrackPage({ searchParams }: TrackPageProps) {
       <div className={styles.trackPage}>
         <div className={styles.trackContainer}>
           <div className={styles.trackHeader}>
-            <h1>Track Your Project</h1>
+            <h1>Live Job Status</h1>
             <p>Enter your tracking code to view the status of your estimates and invoices.</p>
           </div>
+          <StatusStepper />
           <form className={styles.trackForm} action="/track" method="get">
             <input
               type="text"
@@ -193,14 +225,14 @@ export default async function TrackPage({ searchParams }: TrackPageProps) {
     );
   }
 
-  return (
+return (
     <div className={styles.trackPage}>
       <div className={styles.trackContainer}>
         <div className={styles.trackHeader}>
           <h1>Your Project Status</h1>
           <p>Track the status of your estimates and invoices.</p>
         </div>
-
+        <StatusStepper />
         <div className={styles.documentGrid}>
           {documents.map((doc) => (
             <DocumentCard key={`${doc.type}-${doc.displayId}`} doc={doc} />

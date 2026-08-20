@@ -1,0 +1,330 @@
+/* Dispatch Portal -- industrial dark theme */
+
+.dispatch-shell {
+  min-height: 100vh;
+  background: #0f172a;
+  color: #f1f5f9;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.dispatch-banner {
+  background: #f59e0b;
+  color: #0f172a;
+  padding: 8px 16px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: center;
+  border-bottom: 1px solid #d97706;
+}
+
+.dispatch-hero {
+  max-width: 1152px;
+  margin: 0 auto;
+  padding: 96px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.dispatch-badge {
+  display: inline-block;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #f59e0b;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.dispatch-hero h1 {
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  margin: 0;
+  color: white;
+}
+
+.dispatch-hero h1 .accent {
+  color: #f59e0b;
+}
+
+.dispatch-hero .subdeck {
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  color: #94a3b8;
+  max-width: 40ch;
+  line-height: 1.5;
+  margin: 0;
+  font-weight: 500;
+}
+
+.dispatch-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+  width: 100%;
+  max-width: 480px;
+}
+
+/* Buttons */
+
+.dispatch-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 32px;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-radius: 6px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 150ms ease;
+  border: none;
+}
+
+.dispatch-btn-primary {
+  background: #f59e0b;
+  color: #0f172a;
+}
+
+.dispatch-btn-primary:hover { background: #eab308; }
+
+.dispatch-btn-secondary {
+  background: #1e293b;
+  border: 2px solid #334155;
+  color: #e2e8f0;
+  font-weight: 700;
+}
+
+.dispatch-btn-secondary:hover { border-color: #475569; }
+
+.dispatch-btn-submit {
+  width: 100%;
+  background: #f59e0b;
+  color: #0f172a;
+  padding: 14px;
+}
+
+.dispatch-btn-submit:hover { background: #eab308; }
+
+.dispatch-btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Form sections */
+
+.dispatch-section {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 24px 96px;
+}
+
+.dispatch-section h1 {
+  font-size: 1.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: white;
+  margin: 0 0 8px;
+}
+
+.dispatch-section .subdeck {
+  color: #94a3b8;
+  font-size: 0.875rem;
+  margin: 0 0 32px;
+  max-width: 44ch;
+  line-height: 1.5;
+}
+
+.dispatch-form {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dispatch-field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #cbd5e1;
+  margin-bottom: 8px;
+}
+
+.dispatch-field input,
+.dispatch-field select,
+.dispatch-field textarea {
+  width: 100%;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 14px;
+  color: #f1f5f9;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.dispatch-field input:focus,
+.dispatch-field select:focus,
+.dispatch-field textarea:focus {
+  outline: none;
+  border-color: #f59e0b;
+}
+
+.dispatch-field textarea { resize: vertical; min-height: 100px; }
+
+.dispatch-field select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394a3b8'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.dispatch-upload-area {
+  border: 2px dashed #334155;
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  color: #64748b;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 150ms;
+}
+
+.dispatch-upload-area:hover { border-color: #f59e0b; color: #94a3b8; }
+
+/* Status tracker */
+
+.dispatch-tracker {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 24px 96px;
+}
+
+.dispatch-tracker h1 {
+  font-size: 1.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: white;
+  margin: 0 0 32px;
+}
+
+.dispatch-tracker-form {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 32px;
+  display: flex;
+  gap: 12px;
+  margin-bottom: 48px;
+}
+
+.dispatch-tracker-form input {
+  flex: 1;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 14px;
+  color: #f1f5f9;
+  font-family: inherit;
+}
+
+.dispatch-tracker-form input:focus { outline: none; border-color: #f59e0b; }
+
+/* Stepper */
+
+.dispatch-stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 32px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+}
+
+.dispatch-step {
+  display: flex;
+  gap: 16px;
+  position: relative;
+}
+
+.dispatch-step-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 32px;
+}
+
+.dispatch-step-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #334155;
+  border: 2px solid #475569;
+  flex-shrink: 0;
+}
+
+.dispatch-step-dot.completed {
+  background: #f59e0b;
+  border-color: #f59e0b;
+}
+
+.dispatch-step-dot.active {
+  background: #0f172a;
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.2);
+}
+
+.dispatch-step-line {
+  width: 2px;
+  flex: 1;
+  min-height: 24px;
+  background: #334155;
+}
+
+.dispatch-step-line.completed { background: #f59e0b; }
+
+.dispatch-step-content {
+  padding-bottom: 24px;
+  flex: 1;
+}
+
+.dispatch-step-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #475569;
+}
+
+.dispatch-step-label.completed { color: #f59e0b; }
+.dispatch-step-label.active { color: white; }
+
+@media (max-width: 540px) {
+  .dispatch-hero { padding: 64px 16px; }
+  .dispatch-hero h1 { font-size: 2rem; }
+  .dispatch-tracker-form { flex-direction: column; }
+  .dispatch-form { padding: 20px; }
+}

@@ -42,7 +42,7 @@ export function RequestForm({ services }: { services: ServiceDefinition[] }) {
     return (
       <div className="form">
         <p className="ok">Thanks! Your request has been sent. {state.message}</p>
-        <p>We&apos;ll be in touch soon.</p>
+        <p>We'll be in touch soon.</p>
         <button
           className="button secondary"
           onClick={() => setState({ status: 'idle' })}
@@ -69,45 +69,31 @@ export function RequestForm({ services }: { services: ServiceDefinition[] }) {
         <input type="tel" name="contactPhone" maxLength={40} autoComplete="tel" />
       </label>
       <label>
-        Service
-        <select name="serviceSlug" defaultValue="">
-          <option value="">Not sure / something else</option>
+        Service Category *
+        <select name="serviceCategory" required defaultValue="">
+          <option value="">Select a category</option>
           {services.map((service) => (
             <option key={service.slug} value={service.slug}>{service.name}</option>
           ))}
         </select>
       </label>
       <label>
-        Service address
-        <input type="text" name="serviceAddress" maxLength={200} autoComplete="street-address" />
-      </label>
-      <div style={{ display: 'grid', gap: '14px', gridTemplateColumns: '1fr 1fr' }}>
-        <label>
-          Town
-          <input type="text" name="town" maxLength={100} />
-        </label>
-        <label>
-          Postal code
-          <input type="text" name="postalCode" maxLength={20} />
-        </label>
-      </div>
-      <label>
-        What do you need? *
-        <textarea name="summary" required maxLength={300} rows={3} />
+        Work Required *
+        <textarea name="workRequired" required maxLength={500} rows={3} />
       </label>
       <label>
-        Details
-        <textarea name="message" maxLength={4000} rows={5} />
+        Site Location / Access Notes
+        <textarea name="siteLocation" maxLength={500} rows={3} />
       </label>
       <label>
-        Photos (up to 5)
+        Upload Job Site Photos (up to 5)
         <input type="file" name="photos" multiple accept="image/*" />
       </label>
       {state.status === 'error' && (
         <p className="error" role="alert">{state.message}</p>
       )}
       <button className="button" type="submit" disabled={state.status === 'submitting'}>
-        {state.status === 'submitting' ? 'Sending…' : 'Send request'}
+        {state.status === 'submitting' ? 'Sending…' : 'Send Request & Get Estimate'}
       </button>
     </form>
   );

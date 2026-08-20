@@ -276,7 +276,7 @@ export function createEmptyConfigDraft(overrides: Partial<ConfigV1> = {}): Confi
     contact: { phone: '', email: '', address: '', hours: '' },
     serviceArea: { description: '' },
     services: [],
-    hero: { headline: '', subheadline: '' },
+    hero: { headline: 'Built-Right Trade Services. Clear Pricing. Zero Hassle.', subheadline: 'From emergency service calls to full system overhauls, schedule certified tradesmen and track your job progress live.' },
     about: { body: '' },
     documents: { prefixes: { ...DEFAULT_DOCUMENT_PREFIXES } },
     tax: { taxRateMillipercent: 0 },

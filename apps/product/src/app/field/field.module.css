@@ -124,7 +124,7 @@
 }
 
 .card {
-  border: 1px solid var(--line);
+  border: 2px solid var(--line);
   border-radius: var(--radius);
   padding: 16px 18px;
   display: flex;
@@ -174,13 +174,15 @@
 
 .table th {
   text-align: left;
+  font-family: var(--display-font);
   font-size: 0.72rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
+  font-weight: 700;
   color: var(--muted);
   padding: 10px 14px;
-  border-bottom: 1px solid var(--line);
-  background: #fafafa;
+  border-bottom: 3px solid var(--line);
+  background: #F8FAFC;
 }
 
 .table td {
@@ -214,36 +216,43 @@
 
 .amount {
   text-align: right;
+  font-family: var(--mono-font);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  font-weight: 600;
 }
 
 /* --- Badges -------------------------------------------------------------- */
 
 .badge {
   display: inline-block;
-  padding: 2px 9px;
-  border-radius: 999px;
+  padding: 4px 12px;
+  border-radius: var(--radius);
+  font-family: var(--mono-font);
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   white-space: nowrap;
+  border: 2px solid transparent;
 }
 
 .statusDraft {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #FEF3C7;
+  color: #92400E;
+  border-color: #F59E0B;
 }
 
 .statusSigned {
-  background: #ecfdf5;
-  color: #047857;
+  background: #D1FAE5;
+  color: #065F46;
+  border-color: #10B981;
 }
 
 .statusDeclined {
-  background: #fef2f2;
-  color: #b91c1c;
+  background: #FEE2E2;
+  color: #991B1B;
+  border-color: #EF4444;
 }
 
 /* --- Buttons ------------------------------------------------------------- */
@@ -487,7 +496,7 @@
 /* --- Estimate document (read-only) --------------------------------------- */
 
 .document {
-  border: 1px solid var(--line);
+  border: 3px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
   max-width: 860px;

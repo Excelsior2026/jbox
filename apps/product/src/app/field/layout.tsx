@@ -120,10 +120,10 @@ export default async function FieldLayout({ children }: Readonly<{ children: Rea
           <MobileMenuButton />
           <Link className={styles.brand} href="/field">J-Box Field</Link>
           <nav className={styles.nav} aria-label="Field workspace">
-            <Link className={styles.navLink} href="/field">Dashboard</Link>
-            <Link className={styles.navLink} href="/field/customers">Customers</Link>
-            <Link className={styles.navLink} href="/field/estimates">Estimates</Link>
-            <Link className={styles.navLink} href="/field/invoices">Invoices</Link>
+            <Link className={styles.navLink} href="/field">Shop Control</Link>
+            <Link className={styles.navLink} href="/field/customers">Client Index</Link>
+            <Link className={styles.navLink} href="/field/estimates">Bids & Takeoffs</Link>
+            <Link className={styles.navLink} href="/field/invoices">Billing</Link>
             <Link className={styles.navLink} href="/field/storefront">Storefront</Link>
             {principal.role === 'owner' && (
               <Link className={styles.navLink} href="/field/settings/domains">Domains</Link>
