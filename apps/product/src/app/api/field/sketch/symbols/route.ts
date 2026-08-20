@@ -37,13 +37,20 @@ export async function GET() {
            COALESCE(tcs.custom_label, csd.display_name) AS display_name,
            csd.icon_svg_path,
            tcs.price_book_item_id,
-           pbiv.description  AS price_book_name,
+           pbi.description   AS price_book_name,
            pbiv.unit_price_cents
          FROM canvas_symbol_definitions csd
          LEFT JOIN tenant_canvas_symbols tcs
            ON csd.id = tcs.symbol_id AND tcs.organization_id = $1
-         LEFT JOIN price_book_item_versions pbiv
-           ON tcs.price_book_item_id = pbiv.id
+         LEFT JOIN price_book_items pbi
+           ON tcs.price_book_item_id = pbi.id
+         LEFT JOIN LATERAL (
+           SELECT unit_price_cents
+           FROM price_book_item_versions pbiv
+           WHERE pbiv.item_id = pbi.id
+           ORDER BY version DESC
+           LIMIT 1
+         ) pbiv ON true
          WHERE csd.trade_category = $2
             OR csd.trade_category = 'general'
          ORDER BY csd.category, display_name ASC`,

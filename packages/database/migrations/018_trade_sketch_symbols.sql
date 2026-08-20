@@ -141,3 +141,53 @@ GRANT SELECT, INSERT, UPDATE, DELETE
 GRANT SELECT, INSERT, UPDATE, DELETE
   ON canvas_symbol_definitions, tenant_canvas_symbols
   TO platform_runtime;
+
+-- migrate:split
+
+-- ---------------------------------------------------------------------------
+-- 7. SECURITY DEFINER function for J-Box workspace setup
+-- ---------------------------------------------------------------------------
+
+-- Allows platform_runtime to create an organization and seed its trade symbols
+-- without needing direct INSERT on organizations (which only control_app has).
+CREATE OR REPLACE FUNCTION create_organization_with_trade(
+  p_slug text,
+  p_display_name text,
+  p_trade_category text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_org_id uuid;
+  v_result jsonb;
+BEGIN
+  INSERT INTO organizations (slug, display_name, trade_category, status, created_at, updated_at)
+  VALUES (p_slug, p_display_name, p_trade_category, 'active', now(), now())
+  ON CONFLICT (slug) DO UPDATE
+    SET trade_category = EXCLUDED.trade_category, updated_at = now()
+  RETURNING id INTO v_org_id;
+
+  INSERT INTO tenant_canvas_symbols (organization_id, symbol_id, is_active)
+  SELECT v_org_id, id, true
+  FROM canvas_symbol_definitions
+  WHERE trade_category = p_trade_category OR trade_category = 'general'
+  ON CONFLICT (organization_id, symbol_id) DO NOTHING;
+
+  v_result := jsonb_build_object(
+    'id', v_org_id,
+    'display_name', p_display_name,
+    'trade_category', p_trade_category
+  );
+
+  RETURN v_result;
+END;
+$$;
+
+-- migrate:split
+
+GRANT EXECUTE
+  ON FUNCTION create_organization_with_trade(text, text, text)
+  TO platform_runtime;

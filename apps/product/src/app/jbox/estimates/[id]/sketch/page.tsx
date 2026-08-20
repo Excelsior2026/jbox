@@ -53,10 +53,11 @@ export default function SketchPage() {
   useEffect(() => {
     fetch('/api/field/sketch/symbols')
       .then((res) => res.json())
-      .then((data: CanvasSymbol[]) => {
-        setSymbols(data);
-        if (data.length > 0) {
-          const cats = Array.from(new Set(data.map((s) => s.category)));
+      .then((data: { palette?: CanvasSymbol[] }) => {
+        const items = data.palette ?? [];
+        setSymbols(items);
+        if (items.length > 0) {
+          const cats = Array.from(new Set(items.map((s) => s.category)));
           setActiveCategory(cats[0] ?? 'All');
         }
       })
