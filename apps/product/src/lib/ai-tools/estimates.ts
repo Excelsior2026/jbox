@@ -1,11 +1,12 @@
 import 'server-only';
 
 import { getEstimate, listEstimates } from '@/lib/estimates';
+import type { EstimateStatus } from '@/lib/estimate-contract';
 import { authorizeRisk } from '@contractor-platform/ai/agent';
 import type { AiToolDefinition } from '@contractor-platform/ai/agent';
 
 type GetInput = { estimateId: string };
-type ListInput = { status?: string; customerId?: string; serviceRequestId?: string };
+type ListInput = { status?: EstimateStatus; customerId?: string; serviceRequestId?: string };
 
 function validGetInput(input: unknown): input is GetInput {
   return Boolean(input && typeof input === 'object' && typeof (input as GetInput).estimateId === 'string');
@@ -39,7 +40,7 @@ export const listEstimatesTool: AiToolDefinition<ListInput, Awaited<ReturnType<t
   execute: async (_context, input) => {
     if (!validListInput(input)) throw new Error('Invalid list_estimates input');
     return listEstimates({
-      status: input.status as Parameters<typeof listEstimates>[0]['status'],
+      status: input.status,
       customerId: input.customerId,
       serviceRequestId: input.serviceRequestId,
     });
