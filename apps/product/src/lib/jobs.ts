@@ -14,6 +14,16 @@ export type JobListFilter = {
   limit?: number;
 };
 
+export type ScheduledJobSummary = {
+  id: string;
+  displayId: string;
+  customerId: string;
+  customerName: string;
+  title: string;
+  status: JobStatus;
+  scheduledStartAt: string;
+};
+
 /** Audit context shared by every job write path. The actor is resolved from
  * the organization context inside the write (see estimates.ts). */
 export type JobEventContext = {
@@ -84,6 +94,47 @@ export async function listJobs(filter: JobListFilter = {}): Promise<JobRecord[]>
     [customerId, status, limit],
   )) as JobRow[];
   return rows.map(mapJob);
+}
+
+/** Returns only jobs scheduled within the supplied half-open UTC interval. */
+export async function listScheduledJobs(
+  startInclusive: string,
+  endExclusive: string,
+  limit = 100,
+): Promise<ScheduledJobSummary[]> {
+  const context = requireOrganizationContext();
+  const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 100);
+  const rows = (await db().query(
+    `SELECT
+       job.id,
+       job.display_id,
+       job.customer_id,
+       customer.display_name AS customer_name,
+       job.title,
+       job.status,
+       to_json(job.scheduled_start_at) AS scheduled_start_at_token
+     FROM jobs AS job
+     JOIN customers AS customer
+       ON customer.id = job.customer_id
+      AND customer.organization_id = job.organization_id
+     WHERE job.organization_id = $1::uuid
+       AND job.scheduled_start_at >= $2::timestamptz
+       AND job.scheduled_start_at < $3::timestamptz
+       AND job.status <> 'cancelled'
+     ORDER BY job.scheduled_start_at ASC, job.id
+     LIMIT $4`,
+    [context.organizationId, startInclusive, endExclusive, boundedLimit],
+  )) as Array<Record<string, unknown>>;
+
+  return rows.map((row) => ({
+    id: row.id as string,
+    displayId: row.display_id as string,
+    customerId: row.customer_id as string,
+    customerName: row.customer_name as string,
+    title: row.title as string,
+    status: row.status as JobStatus,
+    scheduledStartAt: String(row.scheduled_start_at_token ?? ''),
+  }));
 }
 
 /**
