@@ -46,6 +46,7 @@ export class AiToolRegistry {
       requestId: context.requestId,
       organizationId: context.organizationId,
       actorId: context.actorId,
+      actorKey: context.actorKey,
       source: context.source,
       toolName: tool.name,
       risk: tool.risk,

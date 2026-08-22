@@ -1,9 +1,12 @@
-export type AiActorRole = 'owner' | 'manager' | 'employee';
+export type AiActorRole = 'operator' | 'manager' | 'owner';
 
 export type AiActorContext = {
   requestId: string;
   organizationId: string;
+  /** Persistent UUID of the AI actor in the application's identity authority. */
   actorId: string;
+  /** Stable namespaced identity, e.g. ai:assistant:jbox. */
+  actorKey: string;
   role: AiActorRole;
   source: 'human' | 'ai';
   conversationId?: string;
@@ -24,6 +27,7 @@ export type AiToolAuditEvent = {
   requestId: string;
   organizationId: string;
   actorId: string;
+  actorKey: string;
   source: AiActorContext['source'];
   toolName: string;
   risk: AiRiskLevel;
