@@ -11,6 +11,7 @@ import type { AiActorContext, AiActorRole } from '@contractor-platform/ai/agent'
  * can never manufacture either value.
  */
 export type AiActorIdentity = {
+  organizationId: string;
   actorId: string;
   actorKey: string;
   role: AiActorRole;
@@ -47,6 +48,10 @@ export async function requireAiActorContext(
     throw new Error(`Unknown or inactive AI actor: ${context.actorId}`);
   }
 
+  if (identity.organizationId !== context.organizationId) {
+    throw new Error('AI actor organization does not match request organization');
+  }
+
   if (!identity.actorKey.startsWith('ai:')) {
     throw new Error(`Invalid AI actor namespace: ${identity.actorKey}`);
   }
@@ -74,7 +79,7 @@ export function runAsAiActor<T>(
     throw new Error('AI actor work must begin inside organization context');
   }
 
-  if (identity.organizationId && identity.organizationId !== parent.organizationId) {
+  if (identity.organizationId !== parent.organizationId) {
     throw new Error('AI actor organization does not match request organization');
   }
 
