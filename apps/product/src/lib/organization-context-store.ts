@@ -4,6 +4,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 export type OrganizationContext = {
   organizationId: string;
+  /** Every application actor, including AI, must have an auditable actor ID. */
   actorId: string | null;
   requestId: string;
 };
@@ -11,12 +12,11 @@ export type OrganizationContext = {
 const storage = new AsyncLocalStorage<OrganizationContext>();
 
 /**
- * Runs `work` with tenant context established for its whole async subtree.
+ * Runs work with tenant and actor context established for its whole async subtree.
  *
  * AsyncLocalStorage rather than a module-level variable: serverless instances
  * handle concurrent requests, and a shared mutable "current organization"
- * would let one request read another tenant's context between awaits. That is
- * the kind of bug that appears only under load and looks like data corruption.
+ * would let one request read another tenant's context between awaits.
  */
 export function runWithOrganizationContext<T>(
   context: OrganizationContext,
@@ -30,12 +30,7 @@ export function currentOrganizationContext(): OrganizationContext | undefined {
 }
 
 /**
- * Tenant context or an exception — never a fallback.
- *
- * The database refuses unscoped writes as well (`app_require_organization_id()`
- * raises), so this is defence in depth rather than the only guard. Both layers
- * exist because the application can be wrong and the schema is what makes that
- * wrongness loud instead of silent.
+ * Tenant and actor context or an exception — never a fallback.
  */
 export function requireOrganizationContext(): OrganizationContext {
   const context = storage.getStore();
@@ -47,4 +42,16 @@ export function requireOrganizationContext(): OrganizationContext {
     );
   }
   return context;
+}
+
+/**
+ * AI and other actor-sensitive operations use this stronger guard when an
+ * auditable actor identity is mandatory.
+ */
+export function requireActorContext(): OrganizationContext & { actorId: string } {
+  const context = requireOrganizationContext();
+  if (!context.actorId) {
+    throw new Error('Actor context required; anonymous execution is forbidden');
+  }
+  return context as OrganizationContext & { actorId: string };
 }
