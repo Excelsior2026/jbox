@@ -6,16 +6,30 @@ import type { AiActorContext, AiActorRole } from '@contractor-platform/ai/agent'
 /**
  * AI is an application actor, never an implicit execution context.
  *
- * Any model-driven reasoning or tool execution must carry an auditable actorId.
- * The actor is scoped to the tenant and request, and is propagated through the
- * same AsyncLocalStorage context used by ordinary application work.
+ * The persistent actor UUID is the authoritative identity. actorKey is the
+ * stable human-readable namespace (for example ai:assistant:jbox). The model
+ * can never manufacture either value.
  */
 export type AiActorIdentity = {
   actorId: string;
+  actorKey: string;
   role: AiActorRole;
 };
 
-export function requireAiActorContext(): AiActorContext {
+export type AiActorResolver = {
+  resolve: (input: {
+    organizationId: string;
+    actorId: string;
+  }) => Promise<AiActorIdentity | null>;
+};
+
+/**
+ * Requires an actor that has already been established by the application's
+ * persistent identity authority.
+ */
+export async function requireAiActorContext(
+  resolver: AiActorResolver,
+): Promise<AiActorContext> {
   const context = currentOrganizationContext();
   if (!context) {
     throw new Error('AI actor context required outside tenant context');
@@ -24,24 +38,32 @@ export function requireAiActorContext(): AiActorContext {
     throw new Error('AI actor context requires an auditable actorId');
   }
 
-  const metadata = aiActorRegistry.get(context.actorId);
-  if (!metadata) {
-    throw new Error(`Unknown AI actor: ${context.actorId}`);
+  const identity = await resolver.resolve({
+    organizationId: context.organizationId,
+    actorId: context.actorId,
+  });
+
+  if (!identity) {
+    throw new Error(`Unknown or inactive AI actor: ${context.actorId}`);
+  }
+
+  if (!identity.actorKey.startsWith('ai:')) {
+    throw new Error(`Invalid AI actor namespace: ${identity.actorKey}`);
   }
 
   return {
     requestId: context.requestId,
     organizationId: context.organizationId,
-    actorId: metadata.actorId,
-    role: metadata.role,
+    actorId: identity.actorId,
+    actorKey: identity.actorKey,
+    role: identity.role,
     source: 'ai',
   };
 }
 
 /**
- * Runs AI work as a first-class application actor. The caller must supply an
- * actor ID issued by JBox's identity/authorization layer; arbitrary model text
- * can never manufacture an actor identity.
+ * Runs AI work as a first-class application actor. The caller supplies an
+ * identity previously resolved from JBox's authoritative actor store.
  */
 export function runAsAiActor<T>(
   identity: AiActorIdentity,
@@ -52,8 +74,12 @@ export function runAsAiActor<T>(
     throw new Error('AI actor work must begin inside organization context');
   }
 
-  if (!aiActorRegistry.has(identity.actorId)) {
-    throw new Error(`Unknown AI actor: ${identity.actorId}`);
+  if (identity.organizationId && identity.organizationId !== parent.organizationId) {
+    throw new Error('AI actor organization does not match request organization');
+  }
+
+  if (!identity.actorKey.startsWith('ai:')) {
+    throw new Error('AI actor IDs must use the ai: namespace');
   }
 
   return runWithOrganizationContext(
@@ -64,18 +90,4 @@ export function runAsAiActor<T>(
     },
     work,
   );
-}
-
-/**
- * Temporary in-process registry for the bridge. This is deliberately narrow:
- * production wiring should resolve these identities from the application's
- * persistent actor/identity authority rather than allowing arbitrary IDs.
- */
-const aiActorRegistry = new Map<string, AiActorIdentity>();
-
-export function registerAiActor(identity: AiActorIdentity): void {
-  if (!identity.actorId.startsWith('ai:')) {
-    throw new Error('AI actor IDs must use the ai: namespace');
-  }
-  aiActorRegistry.set(identity.actorId, identity);
 }
